@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL с расширением pgvector ──────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-perfume_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # 5433 на хосте — чтобы не конфликтовать с локальным PostgreSQL на 5432
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-perfume_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Одноразовая инициализация БД и загрузка данных ─────────────────────────
+  # Запускать вручную: docker compose run --rm init
+  init:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-perfume_db}
+    command: >
+      sh -c "python scripts/init_db.py && python scripts/load_to_db.py --input /app/perfumes.json"
+    volumes:
+      - ./perfumes.json:/app/perfumes.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Основное приложение ────────────────────────────────────────────────────
+  app:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-perfume_db}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./perfumes.json:/app/perfumes.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

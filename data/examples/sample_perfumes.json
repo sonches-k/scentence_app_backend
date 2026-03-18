@@ -1,0 +1,82 @@
+[
+  {
+    "name": "No. 5",
+    "brand": "Chanel",
+    "year": 1921,
+    "gender": "Female",
+    "family": "Floral",
+    "product_type": "EDP",
+    "category": "Люкс",
+    "description": "Легендарный цветочный альдегидный аромат — первый «абстрактный» парфюм.",
+    "image_url": null,
+    "notes": {
+      "top": ["Альдегиды", "Нероли", "Иланг-иланг"],
+      "middle": ["Жасмин", "Роза", "Лилия"],
+      "base": ["Сандал", "Ветивер", "Цивет", "Мускус"]
+    }
+  },
+  {
+    "name": "Black Opium",
+    "brand": "Yves Saint Laurent",
+    "year": 2014,
+    "gender": "Female",
+    "family": "Oriental",
+    "product_type": "EDP",
+    "category": "Люкс",
+    "description": "Чувственный восточный аромат с нотами кофе, ванили и белых цветов.",
+    "image_url": null,
+    "notes": {
+      "top": ["Груша", "Розовый перец", "Апельсин"],
+      "middle": ["Кофе", "Жасмин", "Горький миндаль"],
+      "base": ["Ваниль", "Пачули", "Кедр", "Мускус"]
+    }
+  },
+  {
+    "name": "Sauvage",
+    "brand": "Christian Dior",
+    "year": 2015,
+    "gender": "Male",
+    "family": "Fresh",
+    "product_type": "EDT",
+    "category": "Люкс",
+    "description": "Мощный свежий аромат с нотами бергамота и амброксана. Один из самых продаваемых в мире.",
+    "image_url": null,
+    "notes": {
+      "top": ["Бергамот", "Перец"],
+      "middle": ["Лаванда", "Ветивер", "Иланг-иланг"],
+      "base": ["Амброксан", "Кедр", "Лабданум"]
+    }
+  },
+  {
+    "name": "Light Blue",
+    "brand": "Dolce & Gabbana",
+    "year": 2001,
+    "gender": "Female",
+    "family": "Fresh",
+    "product_type": "EDT",
+    "category": "Люкс",
+    "description": "Лёгкий средиземноморский аромат, вдохновлённый сицилийскими лимонами.",
+    "image_url": null,
+    "notes": {
+      "top": ["Сицилийский лимон", "Яблоко", "Колокольчик"],
+      "middle": ["Жасмин", "Белая роза", "Бамбук"],
+      "base": ["Кедр", "Мускус", "Амбра"]
+    }
+  },
+  {
+    "name": "Oud Wood",
+    "brand": "Tom Ford",
+    "year": 2007,
+    "gender": "Unisex",
+    "family": "Woody",
+    "product_type": "EDP",
+    "category": "Селективная",
+    "description": "Элегантный унисекс аромат на базе уда, розового дерева и сандала.",
+    "image_url": null,
+    "notes": {
+      "top": ["Розовый перец", "Кардамон"],
+      "middle": ["Уд", "Китайское розовое дерево", "Сандал"],
+      "base": ["Ветивер", "Тонка", "Амбра"]
+    }
+  }
+]

@@ -1,0 +1,40 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+markers = [
+    "unit: Unit tests — быстрые, без внешних зависимостей",
+    "integration: Integration tests — используют TestClient FastAPI",
+    "e2e: End-to-end tests — требуют PostgreSQL, DeepSeek, sentence-transformers",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+exclude = '''
+/(
+    \.venv
+  | venv
+  | __pycache__
+  | \.git
+  | alembic
+)/
+'''
+
+[tool.flake8]
+max-line-length = 100
+exclude = ["venv", ".venv", "__pycache__", "alembic", ".git"]
+ignore = ["E501", "W503"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+strict = false
+exclude = ["venv", "alembic"]
+
+[tool.isort]
+profile = "black"
+line_length = 100

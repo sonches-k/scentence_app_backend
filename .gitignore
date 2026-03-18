@@ -1,0 +1,104 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Model cache (sentence-transformers / huggingface)
+.cache/
+
+# Data files (большие файлы данных — не в git)
+data/*.json
+data/parsed/
+data/embeddings/
+# Исключение: примеры остаются в git
+!data/examples/
+!data/.gitkeep
+*.csv
+
+# Root-level json data files
+perfumes.json
+perfumes_*.json
+*.data.json
+scripts/parsers/debug_*
+
+# Alembic
+alembic/versions/*.py
+!alembic/versions/__init__.py
+
+# Docker
+.docker/
+
+# Internal docs (architecture notes, agent guides, prompts)
+docs/
+
+# Data pipeline scripts — parsers and one-time utilities
+scripts/parsers/
+scripts/demo/
+scripts/filter_sample_packs.py
+scripts/clean_sample_packs_from_db.py
+
+# Assets (images generated during development)
+assets/
+
+# Coverage and test reports
+coverage_report/
+test_report.html
+test_report_e2e.html

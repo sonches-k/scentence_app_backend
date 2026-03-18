@@ -1,0 +1,50 @@
+# Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
+
+# Database
+sqlalchemy>=2.0.25
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+pgvector>=0.2.4
+
+# OpenAI & AI
+openai>=1.10.0
+tiktoken>=0.5.2
+
+# Embeddings (локальная модель rubert-tiny2)
+sentence-transformers>=2.6.0
+# torch устанавливается отдельно в Dockerfile (CPU-версия)
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Data Processing
+pandas>=2.2.0
+numpy>=1.26.3
+beautifulsoup4>=4.12.3
+requests>=2.31.0
+lxml>=5.1.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+email-validator>=2.1.0  # Обязательно для Pydantic EmailStr
+
+# Testing
+pytest>=7.4.4
+pytest-asyncio>=0.23.3
+httpx>=0.26.0
+
+# Development
+black>=23.12.1
+flake8>=7.0.0
+mypy>=1.8.0
+pre-commit>=3.6.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Utilities
+python-dateutil>=2.8.2

@@ -122,7 +122,7 @@ class PerfumeEmbeddingModel(Base):
         unique=True,
         nullable=False,
     )
-    embedding = Column(Vector(312), nullable=False)  # rubert-tiny2
+    embedding = Column(Vector(1024), nullable=False)  # multilingual-e5-large
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     perfume = relationship("PerfumeModel", back_populates="embedding")

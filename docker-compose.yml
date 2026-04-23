@@ -48,6 +48,7 @@ services:
       - "8000:8000"
     volumes:
       - ./perfumes.json:/app/perfumes.json:ro
+      - huggingface_cache:/root/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,3 +56,4 @@ services:
 
 volumes:
   postgres_data:
+  huggingface_cache:

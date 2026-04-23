@@ -200,14 +200,24 @@ def ensure_embedding_table(session, dimension: int):
             logger.warning(f"Текущая размерность {current_dim} отличается от {dimension}")
             logger.info("Изменение размерности колонки...")
 
+            # Удаляем HNSW-индекс (он привязан к размерности вектора)
+            session.execute(text(
+                "DROP INDEX IF EXISTS perfume_embeddings_hnsw_idx"
+            ))
             # Очищаем таблицу и меняем тип
             session.execute(text("DELETE FROM perfume_embeddings"))
             session.execute(text(f"""
                 ALTER TABLE perfume_embeddings
                 ALTER COLUMN embedding TYPE VECTOR({dimension})
             """))
+            # Пересоздаём HNSW-индекс под новую размерность
+            session.execute(text("""
+                CREATE INDEX IF NOT EXISTS perfume_embeddings_hnsw_idx
+                ON perfume_embeddings
+                USING hnsw (embedding vector_cosine_ops)
+            """))
             session.commit()
-            logger.info(f"Размерность изменена на {dimension}")
+            logger.info(f"Размерность изменена на {dimension}, HNSW-индекс пересоздан")
 
 
 def main():
@@ -223,8 +233,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="cointegrated/rubert-tiny2",
-        help="Модель sentence-transformers (default: rubert-tiny2)"
+        default="intfloat/multilingual-e5-large",
+        help="Модель sentence-transformers (default: multilingual-e5-large)"
     )
     parser.add_argument(
         "--force",

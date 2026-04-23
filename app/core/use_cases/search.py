@@ -2,6 +2,8 @@
 Use Cases для поиска ароматов.
 """
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
@@ -12,6 +14,20 @@ from app.core.interfaces import (
     IEmbeddingService,
     ILLMService,
 )
+
+
+def normalize_query(query: str) -> str:
+    """Нормализация поискового запроса перед векторизацией.
+
+    - Unicode NFC: унифицирует представление символов (важно для кириллицы)
+    - lower: регистронезависимый поиск
+    - collapse whitespace: множественные пробелы → один
+    - strip: убирает пробелы по краям
+    """
+    query = unicodedata.normalize("NFC", query)
+    query = query.lower()
+    query = re.sub(r"\s+", " ", query)
+    return query.strip()
 
 
 @dataclass
@@ -50,6 +66,7 @@ class SemanticSearchUseCase:
         limit: int = 5,
     ) -> SearchResult:
         """Выполнить семантический поиск."""
+        query = normalize_query(query)
         query_embedding = self._embedding_service.generate_embedding(query)
 
         filter_dict = filters.to_dict() if filters else None

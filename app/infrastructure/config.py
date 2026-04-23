@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     ]
 
     # Embedding settings
-    EMBEDDING_DIMENSION: int = 312  # rubert-tiny2
+    EMBEDDING_DIMENSION: int = 1024  # multilingual-e5-large
     EMBEDDING_BATCH_SIZE: int = 100
 
     # Search settings

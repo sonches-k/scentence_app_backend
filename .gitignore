@@ -98,6 +98,15 @@ scripts/clean_sample_packs_from_db.py
 # Assets (images generated during development)
 assets/
 
+# Generated visualizations (PNG-файлы из скриптов анализа)
+*.png
+
+# Numpy arrays (бинарные файлы эмбеддингов)
+*.npy
+
+# Model baseline statistics (данные для сравнения моделей)
+data/model_baseline/
+
 # Coverage and test reports
 coverage_report/
 test_report.html

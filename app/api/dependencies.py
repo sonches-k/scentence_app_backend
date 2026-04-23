@@ -72,7 +72,7 @@ def get_embedding_service() -> IEmbeddingService:
     """Получить сервис эмбеддингов (singleton)."""
     if _is_valid_openai_key(settings.OPENAI_API_KEY):
         return OpenAIEmbeddingService()
-    return SentenceTransformerEmbeddingService("cointegrated/rubert-tiny2")
+    return SentenceTransformerEmbeddingService("intfloat/multilingual-e5-large")
 
 
 def _is_valid_deepseek_key(key: str | None) -> bool:

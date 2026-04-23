@@ -179,8 +179,10 @@ class TestAuthAPIE2E:
             json={"email": email, "code": code},
         )
         assert response.status_code == 200
-        token = response.json()["access_token"]
+        data = response.json()
+        token = data["access_token"]
         assert len(token) > 20
+        assert "refresh_token" in data and len(data["refresh_token"]) > 10
 
         response = api_client.get(
             "/api/v1/users/profile",
@@ -212,9 +214,32 @@ class TestAuthAPIE2E:
         assert response.status_code == 401
 
     def test_logout(self, api_client):
-        """POST /auth/logout → 200 (stateless)."""
-        response = api_client.post("/api/v1/auth/logout")
+        """POST /auth/logout с refresh_token → 200."""
+        import uuid
+        from app.infrastructure.database.connection import SessionLocal
+        from app.infrastructure.database.repositories import SQLAlchemyUserRepository
 
+        email = f"logout_{uuid.uuid4().hex[:8]}@example.com"
+        api_client.post("/api/v1/auth/register", json={"email": email})
+
+        session = SessionLocal()
+        try:
+            repo = SQLAlchemyUserRepository(session)
+            code = repo.get_latest_verification_code(email).code
+        finally:
+            session.close()
+
+        verify = api_client.post(
+            "/api/v1/auth/verify",
+            json={"email": email, "code": code},
+        )
+        assert verify.status_code == 200
+        refresh = verify.json()["refresh_token"]
+
+        response = api_client.post(
+            "/api/v1/auth/logout",
+            json={"refresh_token": refresh},
+        )
         assert response.status_code == 200
 
 

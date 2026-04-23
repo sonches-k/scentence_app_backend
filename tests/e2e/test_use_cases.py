@@ -17,7 +17,7 @@ from app.core.use_cases.user import (
     RemoveFavoriteUseCase,
     GetSearchHistoryUseCase,
 )
-from app.core.use_cases.auth import RegisterUseCase, VerifyCodeUseCase
+from app.core.use_cases.auth import RegisterUseCase, VerifyCodeUseCase, AuthTokens
 from app.core.value_objects import NotePyramid
 
 
@@ -181,12 +181,15 @@ class TestAuthWorkflowE2E:
         assert stored_code is not None
 
         verify = VerifyCodeUseCase(user_repo=user_repo, jwt_service=jwt_service)
-        token = verify.execute(email, stored_code.code)
+        tokens = verify.execute(email, stored_code.code)
 
-        assert isinstance(token, str)
-        assert len(token) > 20
+        assert isinstance(tokens, AuthTokens)
+        assert isinstance(tokens.access_token, str)
+        assert len(tokens.access_token) > 20
+        assert isinstance(tokens.refresh_token, str)
+        assert len(tokens.refresh_token) >= 32
 
-        user_id = jwt_service.decode_token(token)
+        user_id = jwt_service.decode_token(tokens.access_token)
         user = user_repo.get_by_id(user_id)
         assert user is not None
         assert user.email == email

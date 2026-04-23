@@ -1,7 +1,4 @@
-"""
-Работа с JWT токенами.
-"""
-
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
@@ -11,17 +8,13 @@ from app.infrastructure.config import settings
 
 
 def create_access_token(user_id: int) -> str:
-    """Создать JWT токен для пользователя (вспомогательная функция)."""
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_EXPIRE_DAYS)
-    payload = {"sub": str(user_id), "exp": expire}
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": str(user_id), "exp": expire, "type": "access"}
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.ALGORITHM)
 
 
 def decode_access_token(token: str) -> int:
-    """Декодировать JWT токен и вернуть user_id.
-
-    Raises ValueError если токен невалиден или истёк.
-    """
+    """Raises ValueError если токен невалиден или истёк."""
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
         sub = payload.get("sub")
@@ -33,10 +26,14 @@ def decode_access_token(token: str) -> int:
 
 
 class JWTService(IJWTService):
-    """Реализация IJWTService на базе python-jose."""
 
     def create_token(self, user_id: int) -> str:
         return create_access_token(user_id)
 
     def decode_token(self, token: str) -> int:
         return decode_access_token(token)
+
+    def issue_refresh_credentials(self) -> tuple[str, datetime]:
+        token = secrets.token_hex(32)
+        expires = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        return token, expires

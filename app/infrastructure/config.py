@@ -31,7 +31,8 @@ class Settings(BaseSettings):
 
     # JWT
     JWT_SECRET: str = "change-this-jwt-secret-in-production"
-    JWT_EXPIRE_DAYS: int = 7
+    JWT_EXPIRE_DAYS: int = 7  # устарело, оставлено для совместимости
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Email
     EMAIL_BACKEND: str = "console"  # console | smtp

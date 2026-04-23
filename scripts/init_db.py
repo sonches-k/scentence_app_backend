@@ -20,7 +20,8 @@ from app.infrastructure.database.models import (
     UserModel,
     UserFavoriteModel,
     SearchHistoryModel,
-    VerificationCodeModel,  # ОБЯЗАТЕЛЬНО: иначе таблица verification_codes не создастся
+    VerificationCodeModel,
+    RefreshTokenModel,  # ОБЯЗАТЕЛЬНО: иначе таблица refresh_tokens не создастся
 )
 from sqlalchemy import text
 

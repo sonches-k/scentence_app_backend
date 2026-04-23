@@ -1,12 +1,7 @@
-"""
-Dependency Injection контейнер.
-
-Создаёт и инжектирует зависимости в API роуты.
-"""
-
 import logging
 from functools import lru_cache
 from typing import Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -40,26 +35,18 @@ from app.core.use_cases import (
     LoginUseCase,
     VerifyCodeUseCase,
 )
+from app.core.use_cases.auth import RefreshTokenUseCase, LogoutUseCase
 
 
-
-def get_perfume_repository(
-    db: Session = Depends(get_db),
-) -> IPerfumeRepository:
-    """Получить репозиторий ароматов."""
+def get_perfume_repository(db: Session = Depends(get_db)) -> IPerfumeRepository:
     return SQLAlchemyPerfumeRepository(db)
 
 
-def get_user_repository(
-    db: Session = Depends(get_db),
-) -> IUserRepository:
-    """Получить репозиторий пользователей."""
+def get_user_repository(db: Session = Depends(get_db)) -> IUserRepository:
     return SQLAlchemyUserRepository(db)
 
 
-
 def _is_valid_openai_key(key: str | None) -> bool:
-    """Проверить, является ли ключ валидным OpenAI API ключом."""
     if not key:
         return False
     if key.startswith("sk-your") or key == "sk-your-api-key-here":
@@ -67,24 +54,22 @@ def _is_valid_openai_key(key: str | None) -> bool:
     return key.startswith("sk-") and len(key) > 20
 
 
-@lru_cache()
-def get_embedding_service() -> IEmbeddingService:
-    """Получить сервис эмбеддингов (singleton)."""
-    if _is_valid_openai_key(settings.OPENAI_API_KEY):
-        return OpenAIEmbeddingService()
-    return SentenceTransformerEmbeddingService("intfloat/multilingual-e5-large")
-
-
 def _is_valid_deepseek_key(key: str | None) -> bool:
-    """Проверить, является ли ключ валидным DeepSeek API ключом."""
     if not key:
         return False
     return key.startswith("sk-") and len(key) > 20
 
 
 @lru_cache()
+def get_embedding_service() -> IEmbeddingService:
+    if _is_valid_openai_key(settings.OPENAI_API_KEY):
+        return OpenAIEmbeddingService()
+    return SentenceTransformerEmbeddingService("intfloat/multilingual-e5-large")
+
+
+@lru_cache()
 def get_llm_service() -> ILLMService:
-    """Получить LLM сервис (singleton). Приоритет: OpenAI > DeepSeek."""
+    """Приоритет: OpenAI → DeepSeek."""
     if _is_valid_openai_key(settings.OPENAI_API_KEY):
         logger.info("LLM: используется OpenAILLMService")
         return OpenAILLMService()
@@ -96,18 +81,14 @@ def get_llm_service() -> ILLMService:
     )
 
 
-
 def get_email_service() -> IEmailService:
-    """Получить сервис отправки email."""
     from app.infrastructure.services.email_service import EmailService
     return EmailService()
 
 
 def get_jwt_service() -> IJWTService:
-    """Получить JWT сервис (singleton)."""
     from app.infrastructure.security.jwt_handler import JWTService
     return JWTService()
-
 
 
 _http_bearer = HTTPBearer(auto_error=False)
@@ -117,7 +98,6 @@ def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
     user_repo: IUserRepository = Depends(get_user_repository),
 ) -> User:
-    """Dependency: возвращает текущего пользователя из Bearer токена. 401 если нет токена."""
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -135,10 +115,7 @@ def get_current_user(
         )
     user = user_repo.get_by_id(user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Пользователь не найден",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден")
     return user
 
 
@@ -146,7 +123,6 @@ def get_optional_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
     user_repo: IUserRepository = Depends(get_user_repository),
 ) -> Optional[User]:
-    """Dependency: возвращает пользователя если токен передан, иначе None."""
     if not credentials:
         return None
     try:
@@ -157,13 +133,11 @@ def get_optional_current_user(
         return None
 
 
-
 def get_semantic_search_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
     embedding_service: IEmbeddingService = Depends(get_embedding_service),
     llm_service: ILLMService = Depends(get_llm_service),
 ) -> SemanticSearchUseCase:
-    """Получить use case семантического поиска."""
     return SemanticSearchUseCase(
         perfume_repository=perfume_repo,
         embedding_service=embedding_service,
@@ -174,35 +148,30 @@ def get_semantic_search_use_case(
 def get_find_similar_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
 ) -> FindSimilarUseCase:
-    """Получить use case поиска похожих."""
     return FindSimilarUseCase(perfume_repository=perfume_repo)
 
 
 def get_perfume_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
 ) -> GetPerfumeUseCase:
-    """Получить use case получения аромата."""
     return GetPerfumeUseCase(perfume_repository=perfume_repo)
 
 
 def get_filters_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
 ) -> GetFiltersUseCase:
-    """Получить use case получения фильтров."""
     return GetFiltersUseCase(perfume_repository=perfume_repo)
 
 
 def get_brands_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
 ) -> GetBrandsUseCase:
-    """Получить use case получения брендов."""
     return GetBrandsUseCase(perfume_repository=perfume_repo)
 
 
 def get_favorites_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
 ) -> GetFavoritesUseCase:
-    """Получить use case получения избранного."""
     return GetFavoritesUseCase(user_repository=user_repo)
 
 
@@ -210,33 +179,25 @@ def get_add_favorite_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
 ) -> AddFavoriteUseCase:
-    """Получить use case добавления в избранное."""
-    return AddFavoriteUseCase(
-        user_repository=user_repo,
-        perfume_repository=perfume_repo,
-    )
+    return AddFavoriteUseCase(user_repository=user_repo, perfume_repository=perfume_repo)
 
 
 def get_remove_favorite_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
 ) -> RemoveFavoriteUseCase:
-    """Получить use case удаления из избранного."""
     return RemoveFavoriteUseCase(user_repository=user_repo)
 
 
 def get_search_history_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
 ) -> GetSearchHistoryUseCase:
-    """Получить use case получения истории."""
     return GetSearchHistoryUseCase(user_repository=user_repo)
-
 
 
 def get_register_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
     email_service: IEmailService = Depends(get_email_service),
 ) -> RegisterUseCase:
-    """Получить use case регистрации."""
     return RegisterUseCase(user_repo=user_repo, email_service=email_service)
 
 
@@ -244,7 +205,6 @@ def get_login_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
     email_service: IEmailService = Depends(get_email_service),
 ) -> LoginUseCase:
-    """Получить use case входа."""
     return LoginUseCase(user_repo=user_repo, email_service=email_service)
 
 
@@ -252,5 +212,17 @@ def get_verify_code_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
     jwt_service: IJWTService = Depends(get_jwt_service),
 ) -> VerifyCodeUseCase:
-    """Получить use case верификации кода."""
     return VerifyCodeUseCase(user_repo=user_repo, jwt_service=jwt_service)
+
+
+def get_refresh_token_use_case(
+    user_repo: IUserRepository = Depends(get_user_repository),
+    jwt_service: IJWTService = Depends(get_jwt_service),
+) -> RefreshTokenUseCase:
+    return RefreshTokenUseCase(user_repo=user_repo, jwt_service=jwt_service)
+
+
+def get_logout_use_case(
+    user_repo: IUserRepository = Depends(get_user_repository),
+) -> LogoutUseCase:
+    return LogoutUseCase(user_repo=user_repo)

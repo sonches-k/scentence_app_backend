@@ -142,6 +142,16 @@ class TestJWTService:
 
         assert token1 != token2
 
+    def test_issue_refresh_credentials(self, jwt_service):
+        """Opaque refresh и срок истечения в будущем."""
+        from datetime import datetime, timezone
+
+        secret, expires_at = jwt_service.issue_refresh_credentials()
+        assert isinstance(secret, str) and len(secret) >= 32
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        assert expires_at > datetime.now(timezone.utc)
+
 
 class TestEmailService:
 

@@ -18,6 +18,7 @@ from app.core.entities import (
     UserFavorite,
     SearchHistoryEntry,
     VerificationCode,
+    StoredRefreshToken,
 )
 from app.core.interfaces import IPerfumeRepository, IUserRepository
 from app.infrastructure.database.models import (
@@ -30,6 +31,7 @@ from app.infrastructure.database.models import (
     UserFavoriteModel,
     SearchHistoryModel,
     VerificationCodeModel,
+    RefreshTokenModel,
 )
 
 
@@ -411,5 +413,34 @@ class SQLAlchemyUserRepository(IUserRepository):
         """Удалить все коды подтверждения для email."""
         self._session.query(VerificationCodeModel).filter(
             VerificationCodeModel.email == email
+        ).delete()
+        self._session.commit()
+
+    def create_refresh_token(self, user_id: int, token: str, expires_at: datetime) -> None:
+        """Сохранить refresh-токен в БД."""
+        model = RefreshTokenModel(user_id=user_id, token=token, expires_at=expires_at)
+        self._session.add(model)
+        self._session.commit()
+
+    def get_refresh_token(self, token: str) -> Optional[StoredRefreshToken]:
+        """Получить refresh-токен из БД."""
+        model = self._session.query(RefreshTokenModel).filter(
+            RefreshTokenModel.token == token
+        ).first()
+        if not model:
+            return None
+        return StoredRefreshToken(user_id=model.user_id, expires_at=model.expires_at)
+
+    def delete_refresh_token(self, token: str) -> None:
+        """Удалить конкретный refresh-токен (logout)."""
+        self._session.query(RefreshTokenModel).filter(
+            RefreshTokenModel.token == token
+        ).delete()
+        self._session.commit()
+
+    def delete_user_refresh_tokens(self, user_id: int) -> None:
+        """Удалить все refresh-токены пользователя."""
+        self._session.query(RefreshTokenModel).filter(
+            RefreshTokenModel.user_id == user_id
         ).delete()
         self._session.commit()

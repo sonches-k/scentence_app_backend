@@ -1,15 +1,10 @@
-"""
-Доменные сущности для пользователей.
-"""
-
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Any
 
 
 @dataclass
 class User:
-    """Пользователь системы."""
     id: int
     email: str
     name: Optional[str] = None
@@ -21,7 +16,6 @@ class User:
 
 @dataclass
 class UserFavorite:
-    """Избранный аромат пользователя."""
     id: int
     user_id: int
     perfume_id: int
@@ -33,7 +27,6 @@ class UserFavorite:
 
 @dataclass
 class SearchHistoryEntry:
-    """Запись в истории поиска."""
     id: int
     user_id: int
     query_text: str
@@ -46,10 +39,16 @@ class SearchHistoryEntry:
 
 @dataclass
 class VerificationCode:
-    """Код подтверждения email."""
     id: int
     email: str
     code: str
     expires_at: datetime
     attempts: int
     created_at: Optional[datetime] = None
+
+
+@dataclass
+class StoredRefreshToken:
+    """Метаданные токена из БД — сам секрет не хранится в сущности."""
+    user_id: int
+    expires_at: datetime

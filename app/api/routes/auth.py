@@ -90,10 +90,10 @@ async def refresh(
 ):
     """401 — токен не найден или истёк."""
     try:
-        new_access = use_case.execute(request.refresh_token)
+        tokens = use_case.execute(request.refresh_token)
     except InvalidRefreshTokenError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    return TokenResponse(access_token=new_access, refresh_token=request.refresh_token)
+    return TokenResponse(access_token=tokens.access_token, refresh_token=tokens.refresh_token)
 
 
 @router.post("/logout", response_model=MessageResponse, summary="Выход")

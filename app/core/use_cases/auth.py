@@ -107,7 +107,7 @@ class RefreshTokenUseCase:
         self._user_repo = user_repo
         self._jwt_service = jwt_service
 
-    def execute(self, refresh_token: str) -> str:
+    def execute(self, refresh_token: str) -> AuthTokens:
         stored = self._user_repo.get_refresh_token(refresh_token)
         if not stored:
             raise InvalidRefreshTokenError("Refresh-токен не найден или уже использован.")
@@ -119,7 +119,16 @@ class RefreshTokenUseCase:
             self._user_repo.delete_refresh_token(refresh_token)
             raise InvalidRefreshTokenError("Refresh-токен истёк. Выполните вход заново.")
 
-        return self._jwt_service.create_token(stored.user_id)
+        # Ротация: удаляем старый refresh, выдаём новую пару
+        self._user_repo.delete_refresh_token(refresh_token)
+        new_access = self._jwt_service.create_token(stored.user_id)
+        new_refresh, new_expires = self._jwt_service.issue_refresh_credentials()
+        self._user_repo.create_refresh_token(
+            user_id=stored.user_id,
+            token=new_refresh,
+            expires_at=new_expires,
+        )
+        return AuthTokens(access_token=new_access, refresh_token=new_refresh)
 
 
 class LogoutUseCase:

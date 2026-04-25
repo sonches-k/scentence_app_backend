@@ -14,6 +14,7 @@ from app.core.interfaces.services import (
     ILLMService,
     IEmailService,
     IJWTService,
+    ICacheService,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "ILLMService",
     "IEmailService",
     "IJWTService",
+    "ICacheService",
 ]

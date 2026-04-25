@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/perfume_db"
 
+    # Redis
+    REDIS_URL: Optional[str] = None
+
     # OpenAI API
     OPENAI_API_KEY: Optional[str] = None
     EMBEDDING_MODEL: str = "text-embedding-3-small"

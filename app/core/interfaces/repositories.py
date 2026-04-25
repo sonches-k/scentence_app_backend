@@ -43,10 +43,6 @@ class IPerfumeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_unique_brands(self) -> list[str]:
-        pass
-
-    @abstractmethod
     def get_unique_families(self) -> list[str]:
         pass
 
@@ -55,11 +51,17 @@ class IPerfumeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_unique_notes(self) -> list[str]:
+    def get_unique_product_types(self) -> list[str]:
         pass
 
     @abstractmethod
-    def get_unique_product_types(self) -> list[str]:
+    def suggest_brands(self, q: str, limit: int = 20) -> list[str]:
+        """Топ брендов по количеству ароматов (q='') или ILIKE-поиск."""
+        pass
+
+    @abstractmethod
+    def suggest_notes(self, q: str, limit: int = 20) -> list[str]:
+        """Топ нот по количеству ароматов (q='') или ILIKE-поиск."""
         pass
 
 
@@ -104,6 +106,15 @@ class IUserRepository(ABC):
         query_text: str,
         filters: Optional[dict] = None,
     ) -> SearchHistoryEntry:
+        pass
+
+    @abstractmethod
+    def delete_search_history_entry(self, entry_id: int, user_id: int) -> bool:
+        """Удалить запись истории. Возвращает False если запись не найдена или не принадлежит юзеру."""
+        pass
+
+    @abstractmethod
+    def delete_all_search_history(self, user_id: int) -> None:
         pass
 
     @abstractmethod

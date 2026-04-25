@@ -20,17 +20,21 @@ from app.core.interfaces import (
     ILLMService,
     IEmailService,
     IJWTService,
+    ICacheService,
 )
 from app.core.use_cases import (
     SemanticSearchUseCase,
     FindSimilarUseCase,
     GetPerfumeUseCase,
     GetFiltersUseCase,
-    GetBrandsUseCase,
+    SuggestBrandsUseCase,
+    SuggestNotesUseCase,
     GetFavoritesUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
     GetSearchHistoryUseCase,
+    DeleteSearchHistoryEntryUseCase,
+    ClearSearchHistoryUseCase,
     RegisterUseCase,
     LoginUseCase,
     VerifyCodeUseCase,
@@ -91,6 +95,17 @@ def get_jwt_service() -> IJWTService:
     return JWTService()
 
 
+@lru_cache()
+def get_cache_service() -> Optional[ICacheService]:
+    if not settings.REDIS_URL:
+        return None
+    try:
+        from app.infrastructure.cache.redis_service import RedisCacheService
+        return RedisCacheService(settings.REDIS_URL)
+    except Exception:
+        return None
+
+
 _http_bearer = HTTPBearer(auto_error=False)
 
 
@@ -137,36 +152,49 @@ def get_semantic_search_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
     embedding_service: IEmbeddingService = Depends(get_embedding_service),
     llm_service: ILLMService = Depends(get_llm_service),
+    cache: Optional[ICacheService] = Depends(get_cache_service),
 ) -> SemanticSearchUseCase:
     return SemanticSearchUseCase(
         perfume_repository=perfume_repo,
         embedding_service=embedding_service,
         llm_service=llm_service,
+        cache=cache,
     )
 
 
 def get_find_similar_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
+    cache: Optional[ICacheService] = Depends(get_cache_service),
 ) -> FindSimilarUseCase:
-    return FindSimilarUseCase(perfume_repository=perfume_repo)
+    return FindSimilarUseCase(perfume_repository=perfume_repo, cache=cache)
 
 
 def get_perfume_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
+    cache: Optional[ICacheService] = Depends(get_cache_service),
 ) -> GetPerfumeUseCase:
-    return GetPerfumeUseCase(perfume_repository=perfume_repo)
+    return GetPerfumeUseCase(perfume_repository=perfume_repo, cache=cache)
 
 
 def get_filters_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
+    cache: Optional[ICacheService] = Depends(get_cache_service),
 ) -> GetFiltersUseCase:
-    return GetFiltersUseCase(perfume_repository=perfume_repo)
+    return GetFiltersUseCase(perfume_repository=perfume_repo, cache=cache)
 
 
-def get_brands_use_case(
+def get_suggest_brands_use_case(
     perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
-) -> GetBrandsUseCase:
-    return GetBrandsUseCase(perfume_repository=perfume_repo)
+    cache: Optional[ICacheService] = Depends(get_cache_service),
+) -> SuggestBrandsUseCase:
+    return SuggestBrandsUseCase(perfume_repository=perfume_repo, cache=cache)
+
+
+def get_suggest_notes_use_case(
+    perfume_repo: IPerfumeRepository = Depends(get_perfume_repository),
+    cache: Optional[ICacheService] = Depends(get_cache_service),
+) -> SuggestNotesUseCase:
+    return SuggestNotesUseCase(perfume_repository=perfume_repo, cache=cache)
 
 
 def get_favorites_use_case(
@@ -192,6 +220,18 @@ def get_search_history_use_case(
     user_repo: IUserRepository = Depends(get_user_repository),
 ) -> GetSearchHistoryUseCase:
     return GetSearchHistoryUseCase(user_repository=user_repo)
+
+
+def get_delete_search_history_entry_use_case(
+    user_repo: IUserRepository = Depends(get_user_repository),
+) -> DeleteSearchHistoryEntryUseCase:
+    return DeleteSearchHistoryEntryUseCase(user_repository=user_repo)
+
+
+def get_clear_search_history_use_case(
+    user_repo: IUserRepository = Depends(get_user_repository),
+) -> ClearSearchHistoryUseCase:
+    return ClearSearchHistoryUseCase(user_repository=user_repo)
 
 
 def get_register_use_case(

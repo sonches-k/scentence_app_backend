@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from app.infrastructure.database.connection import engine, SessionLocal
 from parsers.filters import is_sample_pack_or_set
-from parsers.normalize import normalize_perfume_name, clean_perfume_notes, normalize_family
+from parsers.normalize import normalize_perfume_name, clean_perfume_notes, normalize_family, normalize_brand
 
 _CYRILLIC_DOMAINS = {
     "духи.рф": "xn--d1ai6ai.xn--p1ai",
@@ -242,6 +242,7 @@ def load_from_json(filepath: str, clean: bool = False, skip_embeddings: bool = F
                 logger.debug(f"Пропуск набора/сэмпла: {brand} - {name}")
                 continue
 
+            perfume["brand"] = normalize_brand(perfume.get("brand"))
             if perfume.get("name") and perfume.get("brand"):
                 perfume["name"] = normalize_perfume_name(perfume["name"], perfume["brand"])
             perfume["notes"] = clean_perfume_notes(perfume.get("notes"))
@@ -272,6 +273,7 @@ def load_from_json(filepath: str, clean: bool = False, skip_embeddings: bool = F
         logger.info(f"  Уникальных нот: {note_count}")
         logger.info(f"  Связей аромат-нота: {link_count}")
 
+        _flush_cache()
         return error_count == 0
 
     except Exception as e:
@@ -281,6 +283,18 @@ def load_from_json(filepath: str, clean: bool = False, skip_embeddings: bool = F
 
     finally:
         session.close()
+
+
+def _flush_cache() -> None:
+    from app.infrastructure.config import settings
+    if not settings.REDIS_URL:
+        return
+    try:
+        from app.infrastructure.cache.redis_service import RedisCacheService
+        RedisCacheService(settings.REDIS_URL).clear()
+        logger.info("✓ Redis cache сброшен")
+    except Exception as e:
+        logger.warning(f"Не удалось сбросить кэш Redis: {e}")
 
 
 def main():

@@ -2,7 +2,10 @@
 API эндпоинты для работы с ароматами.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import hashlib
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.api.schemas.perfume import (
     PerfumeResponse,
@@ -14,9 +17,10 @@ from app.api.schemas.perfume import (
 from app.api.dependencies import (
     get_perfume_use_case,
     get_filters_use_case,
-    get_brands_use_case,
+    get_suggest_brands_use_case,
+    get_suggest_notes_use_case,
 )
-from app.core.use_cases import GetPerfumeUseCase, GetFiltersUseCase, GetBrandsUseCase
+from app.core.use_cases import GetPerfumeUseCase, GetFiltersUseCase, SuggestBrandsUseCase, SuggestNotesUseCase
 from app.core.exceptions import PerfumeNotFoundError
 
 router = APIRouter()
@@ -63,31 +67,58 @@ def _perfume_to_response(perfume) -> PerfumeResponse:
     )
 
 
-@router.get("/filters/all", response_model=FiltersResponse)
+def _compute_etag(data: dict | list) -> str:
+    payload = json.dumps(data, sort_keys=True, ensure_ascii=False)
+    return hashlib.md5(payload.encode()).hexdigest()
+
+
+@router.get("/filters", response_model=FiltersResponse)
 async def get_filters(
+    request: Request,
+    response: Response,
     use_case: GetFiltersUseCase = Depends(get_filters_use_case),
 ):
     """
-    Получить доступные значения для всех фильтров.
+    Статические фильтры: пол, семейство, тип продукта.
+    Бренды и ноты — через /brands/suggest и /notes/suggest.
     """
     filters = use_case.execute()
-    return FiltersResponse(
-        genders=filters.genders,
-        families=filters.families,
-        product_types=filters.product_types,
-        brands=filters.brands,
-        notes=filters.notes,
-    )
+    data = {
+        "genders": filters.genders,
+        "families": filters.families,
+        "product_types": filters.product_types,
+    }
+    etag = _compute_etag(data)
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304)
+
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "no-cache"
+    return FiltersResponse(**data)
 
 
-@router.get("/brands/all", response_model=list[str])
-async def get_brands(
-    use_case: GetBrandsUseCase = Depends(get_brands_use_case),
+@router.get("/brands/suggest", response_model=list[str])
+async def suggest_brands(
+    q: str = "",
+    limit: int = 20,
+    use_case: SuggestBrandsUseCase = Depends(get_suggest_brands_use_case),
 ):
     """
-    Получить список всех брендов, отсортированный по алфавиту.
+    Подсказки брендов. Без q — топ по количеству ароматов. С q — ILIKE-поиск.
     """
-    return use_case.execute()
+    return use_case.execute(q=q.strip(), limit=limit)
+
+
+@router.get("/notes/suggest", response_model=list[str])
+async def suggest_notes(
+    q: str = "",
+    limit: int = 20,
+    use_case: SuggestNotesUseCase = Depends(get_suggest_notes_use_case),
+):
+    """
+    Подсказки нот. Без q — топ по частоте использования. С q — ILIKE-поиск.
+    """
+    return use_case.execute(q=q.strip(), limit=limit)
 
 
 @router.get("/{perfume_id}", response_model=PerfumeResponse)

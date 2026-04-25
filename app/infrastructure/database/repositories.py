@@ -1,13 +1,8 @@
-"""
-Реализации репозиториев на SQLAlchemy.
-
-Имплементация интерфейсов из core/interfaces/repositories.
-"""
 
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select, distinct, exists
+from sqlalchemy import select, distinct, exists, func
 
 from app.core.entities import (
     Perfume,
@@ -36,13 +31,11 @@ from app.infrastructure.database.models import (
 
 
 class SQLAlchemyPerfumeRepository(IPerfumeRepository):
-    """SQLAlchemy реализация репозитория ароматов."""
 
     def __init__(self, session: Session):
         self._session = session
 
     def _to_entity(self, model: PerfumeModel) -> Perfume:
-        """Конвертировать ORM модель в доменную сущность."""
         notes = []
         for pn in model.notes:
             note = Note(
@@ -79,7 +72,6 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         )
 
     def get_by_id(self, perfume_id: int) -> Optional[Perfume]:
-        """Получить аромат по ID."""
         model = self._session.query(PerfumeModel).filter(
             PerfumeModel.id == perfume_id
         ).first()
@@ -91,14 +83,12 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         offset: int = 0,
         filters: Optional[dict] = None,
     ) -> list[Perfume]:
-        """Получить список ароматов с фильтрацией."""
         query = self._session.query(PerfumeModel)
         query = self._apply_filters(query, filters)
         models = query.offset(offset).limit(limit).all()
         return [self._to_entity(m) for m in models]
 
     def _apply_filters(self, query, filters: Optional[dict]):
-        """Применить фильтры к запросу."""
         if not filters:
             return query
 
@@ -135,7 +125,6 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         limit: int = 5,
         filters: Optional[dict] = None,
     ) -> list[tuple[Perfume, float]]:
-        """Поиск по векторному сходству."""
         subquery = (
             self._session.query(
                 PerfumeEmbeddingModel.perfume_id,
@@ -161,7 +150,6 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         perfume_id: int,
         limit: int = 5,
     ) -> list[tuple[Perfume, float]]:
-        """Найти похожие ароматы."""
         source_embedding = self._session.query(PerfumeEmbeddingModel).filter(
             PerfumeEmbeddingModel.perfume_id == perfume_id
         ).first()
@@ -192,41 +180,69 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         results = query.all()
         return [(self._to_entity(model), score) for model, score in results]
 
-    def get_unique_brands(self) -> list[str]:
-        """Получить список уникальных брендов."""
-        result = self._session.query(distinct(PerfumeModel.brand)).all()
-        return sorted([r[0] for r in result if r[0]])
-
     def get_unique_families(self) -> list[str]:
-        """Получить список уникальных семейств."""
         result = self._session.query(distinct(PerfumeModel.family)).all()
         return sorted([r[0] for r in result if r[0]])
 
     def get_unique_genders(self) -> list[str]:
-        """Получить список уникальных значений пола."""
         result = self._session.query(distinct(PerfumeModel.gender)).all()
         return sorted([r[0] for r in result if r[0]])
 
-    def get_unique_notes(self) -> list[str]:
-        """Получить список уникальных нот."""
-        result = self._session.query(distinct(NoteModel.name)).all()
-        return sorted([r[0] for r in result if r[0]])
-
     def get_unique_product_types(self) -> list[str]:
-        """Получить список уникальных типов продукта."""
         result = self._session.query(distinct(PerfumeModel.product_type)).all()
         return sorted([r[0] for r in result if r[0]])
 
+    def suggest_brands(self, q: str, limit: int = 20) -> list[str]:
+        if q:
+            result = (
+                self._session.query(PerfumeModel.brand)
+                .filter(PerfumeModel.brand.ilike(f"%{q}%"))
+                .distinct()
+                .order_by(PerfumeModel.brand)
+                .limit(limit)
+                .all()
+            )
+            return [r[0] for r in result if r[0]]
+        result = (
+            self._session.query(PerfumeModel.brand)
+            .filter(PerfumeModel.brand.isnot(None))
+            .group_by(PerfumeModel.brand)
+            .order_by(func.count(PerfumeModel.id).desc())
+            .limit(limit)
+            .all()
+        )
+        return [r[0] for r in result]
+
+    def suggest_notes(self, q: str, limit: int = 20) -> list[str]:
+        if q:
+            result = (
+                self._session.query(NoteModel.name)
+                .filter(NoteModel.name.ilike(f"%{q}%"))
+                .distinct()
+                .order_by(NoteModel.name)
+                .limit(limit)
+                .all()
+            )
+            return [r[0] for r in result if r[0]]
+        result = (
+            self._session.query(NoteModel.name)
+            .join(PerfumeNoteModel, PerfumeNoteModel.note_id == NoteModel.id)
+            .filter(NoteModel.name.isnot(None))
+            .group_by(NoteModel.name)
+            .order_by(func.count(PerfumeNoteModel.perfume_id).desc())
+            .limit(limit)
+            .all()
+        )
+        return [r[0] for r in result]
+
 
 class SQLAlchemyUserRepository(IUserRepository):
-    """SQLAlchemy реализация репозитория пользователей."""
 
     def __init__(self, session: Session):
         self._session = session
         self._perfume_repo = SQLAlchemyPerfumeRepository(session)
 
     def _to_entity(self, model: UserModel) -> User:
-        """Конвертировать ORM модель в доменную сущность."""
         return User(
             id=model.id,
             email=model.email,
@@ -235,21 +251,18 @@ class SQLAlchemyUserRepository(IUserRepository):
         )
 
     def get_by_id(self, user_id: int) -> Optional[User]:
-        """Получить пользователя по ID."""
         model = self._session.query(UserModel).filter(
             UserModel.id == user_id
         ).first()
         return self._to_entity(model) if model else None
 
     def get_by_email(self, email: str) -> Optional[User]:
-        """Получить пользователя по email."""
         model = self._session.query(UserModel).filter(
             UserModel.email == email
         ).first()
         return self._to_entity(model) if model else None
 
     def create(self, email: str, name: Optional[str] = None) -> User:
-        """Создать пользователя."""
         model = UserModel(email=email, name=name)
         self._session.add(model)
         self._session.commit()
@@ -257,7 +270,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         return self._to_entity(model)
 
     def get_favorites(self, user_id: int) -> list[Perfume]:
-        """Получить избранные ароматы пользователя."""
         favorites = self._session.query(UserFavoriteModel).filter(
             UserFavoriteModel.user_id == user_id
         ).all()
@@ -270,7 +282,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         return perfumes
 
     def add_favorite(self, user_id: int, perfume_id: int) -> UserFavorite:
-        """Добавить аромат в избранное."""
         model = UserFavoriteModel(user_id=user_id, perfume_id=perfume_id)
         self._session.add(model)
         self._session.commit()
@@ -283,7 +294,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         )
 
     def remove_favorite(self, user_id: int, perfume_id: int) -> bool:
-        """Удалить аромат из избранного."""
         result = self._session.query(UserFavoriteModel).filter(
             UserFavoriteModel.user_id == user_id,
             UserFavoriteModel.perfume_id == perfume_id,
@@ -292,7 +302,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         return result > 0
 
     def is_favorite(self, user_id: int, perfume_id: int) -> bool:
-        """Проверить, в избранном ли аромат."""
         result = self._session.query(UserFavoriteModel).filter(
             UserFavoriteModel.user_id == user_id,
             UserFavoriteModel.perfume_id == perfume_id,
@@ -304,7 +313,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         user_id: int,
         limit: int = 100,
     ) -> list[SearchHistoryEntry]:
-        """Получить историю поиска."""
         models = (
             self._session.query(SearchHistoryModel)
             .filter(SearchHistoryModel.user_id == user_id)
@@ -329,7 +337,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         query_text: str,
         filters: Optional[dict] = None,
     ) -> SearchHistoryEntry:
-        """Добавить запись в историю поиска."""
         model = SearchHistoryModel(
             user_id=user_id,
             query_text=query_text,
@@ -346,8 +353,25 @@ class SQLAlchemyUserRepository(IUserRepository):
             created_at=model.created_at,
         )
 
+    def delete_search_history_entry(self, entry_id: int, user_id: int) -> bool:
+        deleted = (
+            self._session.query(SearchHistoryModel)
+            .filter(
+                SearchHistoryModel.id == entry_id,
+                SearchHistoryModel.user_id == user_id,
+            )
+            .delete()
+        )
+        self._session.commit()
+        return deleted > 0
+
+    def delete_all_search_history(self, user_id: int) -> None:
+        self._session.query(SearchHistoryModel).filter(
+            SearchHistoryModel.user_id == user_id
+        ).delete()
+        self._session.commit()
+
     def update_name(self, user_id: int, name: str) -> User:
-        """Обновить имя пользователя."""
         model = self._session.query(UserModel).filter(
             UserModel.id == user_id
         ).first()
@@ -364,7 +388,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         code: str,
         expires_at: datetime,
     ) -> VerificationCode:
-        """Создать код подтверждения."""
         model = VerificationCodeModel(
             email=email,
             code=code,
@@ -384,7 +407,6 @@ class SQLAlchemyUserRepository(IUserRepository):
         )
 
     def get_latest_verification_code(self, email: str) -> Optional[VerificationCode]:
-        """Получить последний код подтверждения для email."""
         model = (
             self._session.query(VerificationCodeModel)
             .filter(VerificationCodeModel.email == email)
@@ -403,27 +425,23 @@ class SQLAlchemyUserRepository(IUserRepository):
         )
 
     def increment_code_attempts(self, code_id: int) -> None:
-        """Увеличить счётчик неверных попыток."""
         self._session.query(VerificationCodeModel).filter(
             VerificationCodeModel.id == code_id
         ).update({"attempts": VerificationCodeModel.attempts + 1})
         self._session.commit()
 
     def delete_verification_codes(self, email: str) -> None:
-        """Удалить все коды подтверждения для email."""
         self._session.query(VerificationCodeModel).filter(
             VerificationCodeModel.email == email
         ).delete()
         self._session.commit()
 
     def create_refresh_token(self, user_id: int, token: str, expires_at: datetime) -> None:
-        """Сохранить refresh-токен в БД."""
         model = RefreshTokenModel(user_id=user_id, token=token, expires_at=expires_at)
         self._session.add(model)
         self._session.commit()
 
     def get_refresh_token(self, token: str) -> Optional[StoredRefreshToken]:
-        """Получить refresh-токен из БД."""
         model = self._session.query(RefreshTokenModel).filter(
             RefreshTokenModel.token == token
         ).first()
@@ -432,14 +450,12 @@ class SQLAlchemyUserRepository(IUserRepository):
         return StoredRefreshToken(user_id=model.user_id, expires_at=model.expires_at)
 
     def delete_refresh_token(self, token: str) -> None:
-        """Удалить конкретный refresh-токен (logout)."""
         self._session.query(RefreshTokenModel).filter(
             RefreshTokenModel.token == token
         ).delete()
         self._session.commit()
 
     def delete_user_refresh_tokens(self, user_id: int) -> None:
-        """Удалить все refresh-токены пользователя."""
         self._session.query(RefreshTokenModel).filter(
             RefreshTokenModel.user_id == user_id
         ).delete()

@@ -1,10 +1,9 @@
-"""
-Use Cases для поиска ароматов.
-"""
-
+import hashlib
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from app.core.entities import NotePyramid, PerfumeWithRelevance
@@ -13,7 +12,11 @@ from app.core.interfaces import (
     IPerfumeRepository,
     IEmbeddingService,
     ILLMService,
+    ICacheService,
 )
+from app.core.use_cases.perfume import perfume_to_dict, perfume_from_dict
+
+_CACHE_TTL = 180 * 24 * 3600  # 180 дней
 
 
 def normalize_query(query: str) -> str:
@@ -32,7 +35,6 @@ def normalize_query(query: str) -> str:
 
 @dataclass
 class SearchResult:
-    """Результат поиска."""
     query: str
     note_pyramid: NotePyramid
     explanation: str
@@ -41,35 +43,85 @@ class SearchResult:
     total_found: int
 
 
-class SemanticSearchUseCase:
-    """
-    Use Case: Семантический поиск ароматов.
+def _search_result_to_dict(r: SearchResult) -> dict:
+    return {
+        "query": r.query,
+        "note_pyramid": {
+            "top": list(r.note_pyramid.top),
+            "middle": list(r.note_pyramid.middle),
+            "base": list(r.note_pyramid.base),
+        },
+        "explanation": r.explanation,
+        "perfumes": [
+            {"perfume": perfume_to_dict(p.perfume), "relevance": p.relevance}
+            for p in r.perfumes
+        ],
+        "filters_applied": r.filters_applied,
+        "total_found": r.total_found,
+    }
 
-    Принимает текстовое описание и возвращает релевантные ароматы
-    с пояснением от LLM.
-    """
+
+def _search_result_from_dict(d: dict) -> SearchResult:
+    np = d["note_pyramid"]
+    return SearchResult(
+        query=d["query"],
+        note_pyramid=NotePyramid(top=np["top"], middle=np["middle"], base=np["base"]),
+        explanation=d["explanation"],
+        perfumes=[
+            PerfumeWithRelevance(perfume=perfume_from_dict(p["perfume"]), relevance=p["relevance"])
+            for p in d["perfumes"]
+        ],
+        filters_applied=d.get("filters_applied"),
+        total_found=d["total_found"],
+    )
+
+
+def _similar_to_dict(results: list[PerfumeWithRelevance]) -> list:
+    return [{"perfume": perfume_to_dict(p.perfume), "relevance": p.relevance} for p in results]
+
+
+def _similar_from_dict(data: list) -> list[PerfumeWithRelevance]:
+    return [
+        PerfumeWithRelevance(perfume=perfume_from_dict(p["perfume"]), relevance=p["relevance"])
+        for p in data
+    ]
+
+
+def _filters_hash(filters: Optional[dict]) -> str:
+    return hashlib.md5(json.dumps(filters or {}, sort_keys=True).encode()).hexdigest()[:8]
+
+
+class SemanticSearchUseCase:
 
     def __init__(
         self,
         perfume_repository: IPerfumeRepository,
         embedding_service: IEmbeddingService,
         llm_service: ILLMService,
+        cache: Optional[ICacheService] = None,
     ):
         self._perfume_repo = perfume_repository
         self._embedding_service = embedding_service
         self._llm_service = llm_service
+        self._cache = cache
 
     def execute(
         self,
         query: str,
         filters: Optional[SearchFilters] = None,
         limit: int = 5,
+        user_id: Optional[int] = None,
     ) -> SearchResult:
-        """Выполнить семантический поиск."""
         query = normalize_query(query)
-        query_embedding = self._embedding_service.generate_embedding(query)
-
         filter_dict = filters.to_dict() if filters else None
+
+        if self._cache and user_id is not None:
+            key = f"search:{user_id}:{query}:{limit}:{_filters_hash(filter_dict)}"
+            cached = self._cache.get(key)
+            if cached:
+                return _search_result_from_dict(cached)
+
+        query_embedding = self._embedding_service.generate_embedding(query)
         results = self._perfume_repo.search_by_embedding(
             embedding=query_embedding,
             limit=limit,
@@ -97,14 +149,14 @@ class SemanticSearchUseCase:
                 "base_notes": pyramid.base,
                 "tags": tag_names,
             })
+
         explanation = self._llm_service.generate_search_explanation(
             query=query,
             perfumes=perfume_dicts,
         )
-
         note_pyramid = self._llm_service.extract_note_pyramid(query)
 
-        return SearchResult(
+        result = SearchResult(
             query=query,
             note_pyramid=note_pyramid,
             explanation=explanation,
@@ -113,30 +165,36 @@ class SemanticSearchUseCase:
             total_found=len(perfumes_with_relevance),
         )
 
+        if self._cache and user_id is not None:
+            self._cache.set(key, _search_result_to_dict(result), _CACHE_TTL)
+
+        return result
+
 
 class FindSimilarUseCase:
-    """
-    Use Case: Поиск похожих ароматов.
 
-    Находит ароматы, похожие на указанный, на основе
-    векторного сходства.
-    """
-
-    def __init__(self, perfume_repository: IPerfumeRepository):
-        self._perfume_repo = perfume_repository
-
-    def execute(
+    def __init__(
         self,
-        perfume_id: int,
-        limit: int = 5,
-    ) -> list[PerfumeWithRelevance]:
-        """Найти похожие ароматы."""
-        results = self._perfume_repo.find_similar(
-            perfume_id=perfume_id,
-            limit=limit,
-        )
+        perfume_repository: IPerfumeRepository,
+        cache: Optional[ICacheService] = None,
+    ):
+        self._perfume_repo = perfume_repository
+        self._cache = cache
 
-        return [
+    def execute(self, perfume_id: int, limit: int = 5) -> list[PerfumeWithRelevance]:
+        if self._cache:
+            key = f"similar:{perfume_id}:{limit}"
+            cached = self._cache.get(key)
+            if cached is not None:
+                return _similar_from_dict(cached)
+
+        results = self._perfume_repo.find_similar(perfume_id=perfume_id, limit=limit)
+        perfumes = [
             PerfumeWithRelevance(perfume=perfume, relevance=score)
             for perfume, score in results
         ]
+
+        if self._cache:
+            self._cache.set(key, _similar_to_dict(perfumes), _CACHE_TTL)
+
+        return perfumes

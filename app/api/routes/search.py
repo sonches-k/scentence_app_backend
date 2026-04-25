@@ -88,6 +88,7 @@ async def semantic_search(
         query=request.query,
         filters=filters,
         limit=request.limit,
+        user_id=current_user.id if current_user else None,
     )
 
     if current_user:

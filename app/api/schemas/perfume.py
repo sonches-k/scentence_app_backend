@@ -155,9 +155,7 @@ class PerfumeWithRelevance(PerfumeCard):
 
 
 class FiltersResponse(BaseModel):
-    """Доступные значения фильтров."""
+    """Доступные значения статических фильтров (без брендов и нот — они на /suggest)."""
     genders: List[str]
     families: List[str]
     product_types: List[str]
-    brands: List[str]
-    notes: List[str]

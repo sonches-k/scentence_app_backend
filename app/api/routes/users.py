@@ -11,6 +11,8 @@ from app.api.dependencies import (
     get_add_favorite_use_case,
     get_remove_favorite_use_case,
     get_search_history_use_case,
+    get_delete_search_history_entry_use_case,
+    get_clear_search_history_use_case,
     get_user_repository,
     get_current_user,
 )
@@ -21,6 +23,8 @@ from app.core.use_cases import (
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
     GetSearchHistoryUseCase,
+    DeleteSearchHistoryEntryUseCase,
+    ClearSearchHistoryUseCase,
 )
 from app.core.exceptions import UserNotFoundError
 
@@ -151,4 +155,28 @@ async def get_history(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
+        )
+
+
+@router.delete("/history", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_history(
+    use_case: ClearSearchHistoryUseCase = Depends(get_clear_search_history_use_case),
+    current_user: User = Depends(get_current_user),
+):
+    """Очистить всю историю поиска пользователя."""
+    use_case.execute(current_user.id)
+
+
+@router.delete("/history/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_history_entry(
+    entry_id: int,
+    use_case: DeleteSearchHistoryEntryUseCase = Depends(get_delete_search_history_entry_use_case),
+    current_user: User = Depends(get_current_user),
+):
+    """Удалить конкретную запись из истории поиска."""
+    deleted = use_case.execute(user_id=current_user.id, entry_id=entry_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="History entry not found",
         )

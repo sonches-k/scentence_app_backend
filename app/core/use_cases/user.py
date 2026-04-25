@@ -1,7 +1,3 @@
-"""
-Use Cases для работы с пользователями.
-"""
-
 from typing import Optional
 
 from app.core.entities import Perfume, UserFavorite, SearchHistoryEntry
@@ -10,15 +6,11 @@ from app.core.interfaces import IUserRepository, IPerfumeRepository
 
 
 class GetFavoritesUseCase:
-    """
-    Use Case: Получение избранных ароматов.
-    """
 
     def __init__(self, user_repository: IUserRepository):
         self._user_repo = user_repository
 
     def execute(self, user_id: int) -> list[Perfume]:
-        """Получить избранные ароматы пользователя."""
         user = self._user_repo.get_by_id(user_id)
         if not user:
             raise UserNotFoundError(f"User with id={user_id} not found")
@@ -26,9 +18,6 @@ class GetFavoritesUseCase:
 
 
 class AddFavoriteUseCase:
-    """
-    Use Case: Добавление аромата в избранное.
-    """
 
     def __init__(
         self,
@@ -39,7 +28,6 @@ class AddFavoriteUseCase:
         self._perfume_repo = perfume_repository
 
     def execute(self, user_id: int, perfume_id: int) -> UserFavorite:
-        """Добавить аромат в избранное."""
         user = self._user_repo.get_by_id(user_id)
         if not user:
             raise UserNotFoundError(f"User with id={user_id} not found")
@@ -58,15 +46,11 @@ class AddFavoriteUseCase:
 
 
 class RemoveFavoriteUseCase:
-    """
-    Use Case: Удаление аромата из избранного.
-    """
 
     def __init__(self, user_repository: IUserRepository):
         self._user_repo = user_repository
 
     def execute(self, user_id: int, perfume_id: int) -> bool:
-        """Удалить аромат из избранного."""
         user = self._user_repo.get_by_id(user_id)
         if not user:
             raise UserNotFoundError(f"User with id={user_id} not found")
@@ -74,16 +58,30 @@ class RemoveFavoriteUseCase:
 
 
 class GetSearchHistoryUseCase:
-    """
-    Use Case: Получение истории поиска.
-    """
 
     def __init__(self, user_repository: IUserRepository):
         self._user_repo = user_repository
 
     def execute(self, user_id: int, limit: int = 100) -> list[SearchHistoryEntry]:
-        """Получить историю поиска пользователя."""
         user = self._user_repo.get_by_id(user_id)
         if not user:
             raise UserNotFoundError(f"User with id={user_id} not found")
         return self._user_repo.get_search_history(user_id, limit)
+
+
+class DeleteSearchHistoryEntryUseCase:
+
+    def __init__(self, user_repository: IUserRepository):
+        self._user_repo = user_repository
+
+    def execute(self, user_id: int, entry_id: int) -> bool:
+        return self._user_repo.delete_search_history_entry(entry_id=entry_id, user_id=user_id)
+
+
+class ClearSearchHistoryUseCase:
+
+    def __init__(self, user_repository: IUserRepository):
+        self._user_repo = user_repository
+
+    def execute(self, user_id: int) -> None:
+        self._user_repo.delete_all_search_history(user_id)

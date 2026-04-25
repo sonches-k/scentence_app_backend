@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Any, Optional
 
 from app.core.entities import NotePyramid
 
@@ -47,4 +48,23 @@ class IJWTService(ABC):
     @abstractmethod
     def issue_refresh_credentials(self) -> tuple[str, datetime]:
         """Возвращает (token, expires_at UTC) для сохранения в БД."""
+        pass
+
+
+class ICacheService(ABC):
+
+    @abstractmethod
+    def get(self, key: str) -> Optional[Any]:
+        pass
+
+    @abstractmethod
+    def set(self, key: str, value: Any, ttl: int) -> None:
+        pass
+
+    @abstractmethod
+    def delete(self, key: str) -> None:
+        pass
+
+    @abstractmethod
+    def clear(self) -> None:
         pass

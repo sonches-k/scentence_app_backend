@@ -26,6 +26,9 @@ beautifulsoup4>=4.12.3
 requests>=2.31.0
 lxml>=5.1.0
 
+# Cache
+redis>=5.0.0
+
 # Authentication & Security
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4

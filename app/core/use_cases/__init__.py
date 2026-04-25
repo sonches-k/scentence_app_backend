@@ -17,13 +17,16 @@ from app.core.use_cases.search import (
 from app.core.use_cases.perfume import (
     GetPerfumeUseCase,
     GetFiltersUseCase,
-    GetBrandsUseCase,
+    SuggestBrandsUseCase,
+    SuggestNotesUseCase,
 )
 from app.core.use_cases.user import (
     GetFavoritesUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
     GetSearchHistoryUseCase,
+    DeleteSearchHistoryEntryUseCase,
+    ClearSearchHistoryUseCase,
 )
 
 __all__ = [
@@ -34,9 +37,12 @@ __all__ = [
     "FindSimilarUseCase",
     "GetPerfumeUseCase",
     "GetFiltersUseCase",
-    "GetBrandsUseCase",
+    "SuggestBrandsUseCase",
+    "SuggestNotesUseCase",
     "GetFavoritesUseCase",
     "AddFavoriteUseCase",
     "RemoveFavoriteUseCase",
     "GetSearchHistoryUseCase",
+    "DeleteSearchHistoryEntryUseCase",
+    "ClearSearchHistoryUseCase",
 ]

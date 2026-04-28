@@ -1,8 +1,19 @@
 from typing import Optional
 
-from app.core.entities import Perfume, UserFavorite, SearchHistoryEntry
-from app.core.exceptions import UserNotFoundError
+from app.core.entities import Perfume, User, UserFavorite, SearchHistoryEntry
+from app.core.exceptions import PerfumeNotFoundError, UserNotFoundError
 from app.core.interfaces import IUserRepository, IPerfumeRepository
+
+
+class UpdateProfileUseCase:
+
+    def __init__(self, user_repository: IUserRepository):
+        self._user_repo = user_repository
+
+    def execute(self, user_id: int, name: str) -> User:
+        if not self._user_repo.get_by_id(user_id):
+            raise UserNotFoundError(f"User with id={user_id} not found")
+        return self._user_repo.update_name(user_id, name)
 
 
 class GetFavoritesUseCase:
@@ -18,6 +29,12 @@ class GetFavoritesUseCase:
 
 
 class AddFavoriteUseCase:
+    """
+    Добавить аромат в избранное пользователя.
+
+    Операция идемпотентна: повторное добавление того же аромата возвращает
+    существующую запись избранного без создания дубликата.
+    """
 
     def __init__(
         self,
@@ -28,19 +45,15 @@ class AddFavoriteUseCase:
         self._perfume_repo = perfume_repository
 
     def execute(self, user_id: int, perfume_id: int) -> UserFavorite:
-        user = self._user_repo.get_by_id(user_id)
-        if not user:
+        if self._user_repo.get_by_id(user_id) is None:
             raise UserNotFoundError(f"User with id={user_id} not found")
 
-        if self._user_repo.is_favorite(user_id, perfume_id):
-            favorites = self._user_repo.get_favorites(user_id)
-            for fav in favorites:
-                if fav.id == perfume_id:
-                    return UserFavorite(
-                        id=0,
-                        user_id=user_id,
-                        perfume_id=perfume_id,
-                    )
+        if self._perfume_repo.get_by_id(perfume_id) is None:
+            raise PerfumeNotFoundError(f"Perfume with id={perfume_id} not found")
+
+        existing = self._user_repo.get_favorite(user_id, perfume_id)
+        if existing is not None:
+            return existing
 
         return self._user_repo.add_favorite(user_id, perfume_id)
 

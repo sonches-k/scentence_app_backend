@@ -6,10 +6,14 @@ Integration-тесты для эндпоинтов /users/.
 import pytest
 from unittest.mock import MagicMock
 
-from app.core.exceptions import UserNotFoundError
+from app.core.exceptions import PerfumeNotFoundError, UserNotFoundError
 from app.core.use_cases import GetFavoritesUseCase
 from app.main import app
-from app.api.dependencies import get_favorites_use_case, get_current_user
+from app.api.dependencies import (
+    get_add_favorite_use_case,
+    get_favorites_use_case,
+    get_current_user,
+)
 
 
 pytestmark = pytest.mark.integration
@@ -59,6 +63,34 @@ class TestAddFavoriteEndpoint:
 
         assert response.status_code == 201
         assert response.json()["id"] == 1  # from mock
+
+    def test_add_favorite_perfume_not_found(self, test_client):
+        """Несуществующий аромат — 404 с сообщением Perfume not found."""
+        mock_uc = MagicMock()
+        mock_uc.execute.side_effect = PerfumeNotFoundError("Perfume with id=999 not found")
+
+        app.dependency_overrides[get_add_favorite_use_case] = lambda: mock_uc
+        try:
+            response = test_client.post(f"{BASE}/users/favorites/999")
+        finally:
+            app.dependency_overrides.pop(get_add_favorite_use_case, None)
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Perfume not found"
+
+    def test_add_favorite_user_not_found(self, test_client):
+        """Несуществующий пользователь — 404 с сообщением User not found."""
+        mock_uc = MagicMock()
+        mock_uc.execute.side_effect = UserNotFoundError("User with id=99 not found")
+
+        app.dependency_overrides[get_add_favorite_use_case] = lambda: mock_uc
+        try:
+            response = test_client.post(f"{BASE}/users/favorites/1")
+        finally:
+            app.dependency_overrides.pop(get_add_favorite_use_case, None)
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "User not found"
 
 
 class TestRemoveFavoriteEndpoint:

@@ -59,11 +59,12 @@ def ensure_summary_column(session) -> None:
         logger.warning(f"Не удалось добавить колонку review_summary: {e}")
 
 
-def get_perfumes(session, force: bool = False, limit: int = None) -> list[dict]:
+def get_perfumes(session, force: bool = False, limit: int = None, offset: int = 0) -> list[dict]:
     """
     Загрузить ароматы из БД вместе с нотами.
 
     Если force=False — пропускает ароматы, у которых уже есть теги source='deepseek'.
+    offset позволяет запускать несколько процессов параллельно на разных диапазонах.
     """
     already_tagged_filter = "" if force else """
     WHERE NOT EXISTS (
@@ -72,6 +73,7 @@ def get_perfumes(session, force: bool = False, limit: int = None) -> list[dict]:
     )
     """
     limit_clause = f"LIMIT {limit}" if limit else ""
+    offset_clause = f"OFFSET {offset}" if offset else ""
 
     query = text(f"""
         SELECT
@@ -90,6 +92,7 @@ def get_perfumes(session, force: bool = False, limit: int = None) -> list[dict]:
         GROUP BY p.id, p.name, p.brand, p.family, p.description
         ORDER BY p.id
         {limit_clause}
+        {offset_clause}
     """)
 
     rows = session.execute(query).fetchall()
@@ -285,6 +288,13 @@ def main():
         default=BATCH_SIZE,
         help=f"Размер батча (default: {BATCH_SIZE})",
     )
+    parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Пропустить первые N ароматов (для параллельного запуска)",
+    )
     args = parser.parse_args()
 
     # Загружаем .env из корня проекта (override=True чтобы .env имел приоритет над env в терминале)
@@ -334,7 +344,7 @@ def main():
             ensure_summary_column(session)
 
         logger.info("Загрузка ароматов из БД...")
-        perfumes = get_perfumes(session, force=args.force, limit=args.limit)
+        perfumes = get_perfumes(session, force=args.force, limit=args.limit, offset=args.offset)
 
         if not perfumes:
             logger.info(

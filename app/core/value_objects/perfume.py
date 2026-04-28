@@ -1,18 +1,10 @@
-"""
-Value Objects для ароматов.
-"""
-
 from dataclasses import dataclass, field
 from typing import Optional
 
 
 @dataclass(frozen=True)
 class NotePyramid:
-    """
-    Пирамида нот аромата.
-
-    Immutable value object - определяется только содержимым.
-    """
+    """Пирамида нот аромата: верхние (быстро улетучиваются), сердце, база."""
     top: tuple[str, ...] = field(default_factory=tuple)
     middle: tuple[str, ...] = field(default_factory=tuple)
     base: tuple[str, ...] = field(default_factory=tuple)
@@ -24,7 +16,6 @@ class NotePyramid:
         object.__setattr__(self, 'base', tuple(self.base))
 
     def to_lists(self) -> dict[str, list[str]]:
-        """Конвертировать в словарь со списками (для API)."""
         return {
             "top": list(self.top),
             "middle": list(self.middle),
@@ -34,11 +25,7 @@ class NotePyramid:
 
 @dataclass(frozen=True)
 class PerfumeTag:
-    """
-    Тег аромата, извлеченный через RAG.
-
-    Immutable value object.
-    """
+    """Тег аромата: извлекается парсером (source='parsed') или LLM (source='deepseek')."""
     tag: str
     confidence: Optional[float] = None
     source: Optional[str] = None

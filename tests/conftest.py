@@ -18,7 +18,6 @@ from app.core.interfaces import (
 )
 from app.core.use_cases import (
     FindSimilarUseCase,
-    GetBrandsUseCase,
     GetFiltersUseCase,
     GetPerfumeUseCase,
     SemanticSearchUseCase,
@@ -32,7 +31,6 @@ from app.core.use_cases.search import SearchResult
 from app.core.value_objects import NotePyramid
 from app.main import app
 from app.api.dependencies import (
-    get_brands_use_case,
     get_filters_use_case,
     get_find_similar_use_case,
     get_optional_current_user,
@@ -108,21 +106,40 @@ def mock_user_repository() -> MagicMock:
 @pytest.fixture
 def mock_embedding_service() -> MagicMock:
     mock = MagicMock(spec=IEmbeddingService)
-    mock.generate_embedding.return_value = [0.1] * 312
-    mock.generate_embeddings_batch.return_value = [[0.1] * 312]
+    mock.generate_embedding.return_value = [0.1] * 1024
+    mock.generate_embeddings_batch.return_value = [[0.1] * 1024]
     return mock
 
 
 @pytest.fixture
 def mock_llm_service() -> MagicMock:
     mock = MagicMock(spec=ILLMService)
-    mock.extract_note_pyramid.return_value = NotePyramid(
-        top=("Бергамот", "Лимон"),
-        middle=("Роза", "Жасмин"),
-        base=("Мускус", "Ваниль"),
+    mock.generate_search_result.return_value = (
+        "Тестовое пояснение к результатам поиска.",
+        NotePyramid(
+            top=("Бергамот", "Лимон"),
+            middle=("Роза", "Жасмин"),
+            base=("Мускус", "Ваниль"),
+        ),
     )
-    mock.generate_search_explanation.return_value = "Тестовое пояснение к результатам поиска."
     return mock
+
+
+@pytest.fixture
+def mock_llm_service_result() -> dict:
+    """Словарь, имитирующий значение, сохранённое в Redis (формат _search_result_to_dict)."""
+    return {
+        "query": "летний цветочный",
+        "note_pyramid": {
+            "top": ["Бергамот"],
+            "middle": ["Роза"],
+            "base": ["Мускус"],
+        },
+        "explanation": "Тестовое пояснение из кэша.",
+        "perfumes": [],
+        "filters_applied": None,
+        "total_found": 0,
+    }
 
 
 
@@ -161,12 +178,8 @@ def test_client(sample_perfumes, sample_perfume):
         genders=["Female", "Male", "Unisex"],
         families=["Floral", "Oriental", "Woody"],
         product_types=["EDP", "EDT", "Parfum"],
-        brands=["Chanel", "Dior", "Guerlain"],
-        notes=["Бергамот", "Роза", "Мускус", "Сандал"],
+        categories=["Люкс", "Нишевая"],
     )
-
-    mock_brands_uc = MagicMock(spec=GetBrandsUseCase)
-    mock_brands_uc.execute.return_value = ["Chanel", "Dior", "Guerlain"]
 
     mock_favorites_uc = MagicMock(spec=GetFavoritesUseCase)
     mock_favorites_uc.execute.return_value = sample_perfumes[:2]
@@ -191,7 +204,6 @@ def test_client(sample_perfumes, sample_perfume):
     app.dependency_overrides[get_find_similar_use_case]    = lambda: mock_similar_uc
     app.dependency_overrides[get_perfume_use_case]         = lambda: mock_perfume_uc
     app.dependency_overrides[get_filters_use_case]         = lambda: mock_filters_uc
-    app.dependency_overrides[get_brands_use_case]          = lambda: mock_brands_uc
     app.dependency_overrides[get_favorites_use_case]       = lambda: mock_favorites_uc
     app.dependency_overrides[get_add_favorite_use_case]    = lambda: mock_add_fav_uc
     app.dependency_overrides[get_remove_favorite_use_case] = lambda: mock_remove_fav_uc

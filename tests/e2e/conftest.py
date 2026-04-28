@@ -56,7 +56,10 @@ def user_repo(db_session: Session) -> SQLAlchemyUserRepository:
 @pytest.fixture(scope="session")
 def embedding_service() -> SentenceTransformerEmbeddingService:
     """
-    Реальный embedding сервис (rubert-tiny2).
+    Лёгкая модель для e2e-тестов (rubert-tiny2, 312 dim).
+    Используется вместо продовой intfloat/multilingual-e5-large (1024 dim)
+    ради скорости загрузки. Тесты на семантическое сходство с реальной БД
+    запускать с осторожностью: размерность не совпадает с хранимыми эмбеддингами.
     scope=session — модель грузится один раз на всю сессию тестов.
     """
     return SentenceTransformerEmbeddingService("cointegrated/rubert-tiny2")

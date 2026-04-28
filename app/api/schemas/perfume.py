@@ -1,44 +1,25 @@
-"""
-Pydantic схемы для API - модели ароматов.
-"""
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import datetime
 
 
 class NoteBase(BaseModel):
-    """Базовая схема ноты."""
     name: str
     category: Optional[str] = None
 
 
 class Note(NoteBase):
-    """Схема ноты с ID."""
     id: int
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PerfumeNoteResponse(BaseModel):
-    """Схема ноты в составе аромата."""
     note: Note
     level: str  # Top, Middle, Base
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotePyramid(BaseModel):
-    """
-    Пирамида нот аромата.
-
-    Классическая трёхуровневая структура парфюмерной композиции:
-    верхние ноты раскрываются первыми (5–15 мин), сердце — основа аромата,
-    база — шлейф, остающийся через несколько часов.
-    """
-
     top: List[str] = Field(
         default_factory=list,
         description="Верхние ноты (head notes) — первое впечатление",
@@ -69,17 +50,13 @@ class NotePyramid(BaseModel):
 
 
 class PerfumeTagResponse(BaseModel):
-    """Схема тега аромата."""
     tag: str
     confidence: Optional[float] = None
     source: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PerfumeBase(BaseModel):
-    """Базовая схема аромата."""
     name: str = Field(..., min_length=1, max_length=255)
     brand: str = Field(..., min_length=1, max_length=255)
     year: Optional[int] = Field(None, ge=1800, le=2030)
@@ -87,41 +64,22 @@ class PerfumeBase(BaseModel):
     family: Optional[str] = Field(None, max_length=100)
     gender: Optional[str] = Field(None, max_length=20)
     description: Optional[str] = None
+    review_summary: Optional[str] = None
+    category: Optional[str] = None
     image_url: Optional[str] = Field(None, max_length=512)
     source_url: Optional[str] = Field(None, max_length=512)
 
 
-class PerfumeCreate(PerfumeBase):
-    """Схема для создания аромата."""
-    pass
-
-
-class PerfumeUpdate(BaseModel):
-    """Схема для обновления аромата."""
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    brand: Optional[str] = Field(None, min_length=1, max_length=255)
-    year: Optional[int] = Field(None, ge=1800, le=2030)
-    product_type: Optional[str] = Field(None, max_length=50)
-    family: Optional[str] = Field(None, max_length=100)
-    gender: Optional[str] = Field(None, max_length=20)
-    description: Optional[str] = None
-    image_url: Optional[str] = Field(None, max_length=512)
-
-
 class PerfumeResponse(PerfumeBase):
-    """Схема ответа с информацией об аромате."""
     id: int
     notes: List[PerfumeNoteResponse] = Field(default_factory=list)
     tags: List[PerfumeTagResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PerfumeCard(BaseModel):
-    """Схема карточки аромата для списка (упрощенная)."""
     id: int
     name: str
     brand: str
@@ -129,12 +87,12 @@ class PerfumeCard(BaseModel):
     source_url: Optional[str] = None
     family: Optional[str] = None
     gender: Optional[str] = None
+    category: Optional[str] = None
+    review_summary: Optional[str] = None
     top_notes: List[str] = Field(default_factory=list, description="Верхние ноты (до 5)")
     middle_notes: List[str] = Field(default_factory=list, description="Средние ноты (до 5)")
     base_notes: List[str] = Field(default_factory=list, description="Базовые ноты (до 5)")
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PerfumeWithRelevance(PerfumeCard):
@@ -159,3 +117,4 @@ class FiltersResponse(BaseModel):
     genders: List[str]
     families: List[str]
     product_types: List[str]
+    categories: List[str] = []

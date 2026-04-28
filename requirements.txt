@@ -10,11 +10,10 @@ psycopg2-binary>=2.9.9
 alembic>=1.13.1
 pgvector>=0.2.4
 
-# OpenAI & AI
+# LLM SDK (используется как клиент для DeepSeek API — он OpenAI-совместим)
 openai>=1.10.0
-tiktoken>=0.5.2
 
-# Embeddings (локальная модель rubert-tiny2)
+# Embeddings (локальная модель intfloat/multilingual-e5-large, 1024 dim)
 sentence-transformers>=2.6.0
 # torch устанавливается отдельно в Dockerfile (CPU-версия)
 # pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -31,13 +30,11 @@ redis>=5.0.0
 
 # Authentication & Security
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 email-validator>=2.1.0  # Обязательно для Pydantic EmailStr
 
 # Testing
 pytest>=7.4.4
-pytest-asyncio>=0.23.3
 httpx>=0.26.0
 
 # Development

@@ -6,7 +6,9 @@ Integration-тесты для эндпоинтов поиска.
 import pytest
 from unittest.mock import MagicMock
 
-from app.core.use_cases.perfume import PerfumeNotFoundError
+from app.core.exceptions import PerfumeNotFoundError
+from app.main import app
+from app.api.dependencies import get_find_similar_use_case
 
 
 pytestmark = pytest.mark.integration
@@ -151,5 +153,31 @@ class TestFindSimilarEndpoint:
     def test_similar_endpoint_invalid_id_type(self, test_client):
         """Не числовой ID → 422."""
         response = test_client.post(f"{BASE}/search/similar/abc")
+
+        assert response.status_code == 422
+
+    def test_similar_endpoint_perfume_not_found(self, test_client):
+        """Несуществующий perfume_id → 404 с сообщением Perfume not found."""
+        mock_uc = MagicMock()
+        mock_uc.execute.side_effect = PerfumeNotFoundError("Perfume with id=999 not found")
+
+        app.dependency_overrides[get_find_similar_use_case] = lambda: mock_uc
+        try:
+            response = test_client.post(f"{BASE}/search/similar/999")
+        finally:
+            app.dependency_overrides.pop(get_find_similar_use_case, None)
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Perfume not found"
+
+    def test_similar_endpoint_limit_too_large(self, test_client):
+        """limit > 20 → 422 (валидация Query)."""
+        response = test_client.post(f"{BASE}/search/similar/1?limit=21")
+
+        assert response.status_code == 422
+
+    def test_similar_endpoint_limit_zero(self, test_client):
+        """limit < 1 → 422 (валидация Query)."""
+        response = test_client.post(f"{BASE}/search/similar/1?limit=0")
 
         assert response.status_code == 422

@@ -97,13 +97,12 @@ class TestFindSimilarE2E:
             assert p.perfume.id != existing_perfume_id
             assert 0.0 <= p.relevance <= 1.0
 
-    def test_find_similar_nonexistent(self, perfume_repo):
-        """Несуществующий аромат — пустой список (нет эмбеддинга)."""
+    def test_find_similar_nonexistent_raises(self, perfume_repo):
+        """Несуществующий аромат — бросает PerfumeNotFoundError."""
         use_case = FindSimilarUseCase(perfume_repository=perfume_repo)
 
-        results = use_case.execute(perfume_id=999999, limit=3)
-
-        assert results == []
+        with pytest.raises(PerfumeNotFoundError):
+            use_case.execute(perfume_id=999999, limit=3)
 
 
 class TestGetPerfumeE2E:

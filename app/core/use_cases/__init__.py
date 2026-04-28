@@ -9,6 +9,8 @@ from app.core.use_cases.auth import (
     RegisterUseCase,
     LoginUseCase,
     VerifyCodeUseCase,
+    RefreshTokenUseCase,
+    LogoutUseCase,
 )
 from app.core.use_cases.search import (
     SemanticSearchUseCase,
@@ -21,6 +23,7 @@ from app.core.use_cases.perfume import (
     SuggestNotesUseCase,
 )
 from app.core.use_cases.user import (
+    UpdateProfileUseCase,
     GetFavoritesUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
@@ -33,12 +36,15 @@ __all__ = [
     "RegisterUseCase",
     "LoginUseCase",
     "VerifyCodeUseCase",
+    "RefreshTokenUseCase",
+    "LogoutUseCase",
     "SemanticSearchUseCase",
     "FindSimilarUseCase",
     "GetPerfumeUseCase",
     "GetFiltersUseCase",
     "SuggestBrandsUseCase",
     "SuggestNotesUseCase",
+    "UpdateProfileUseCase",
     "GetFavoritesUseCase",
     "AddFavoriteUseCase",
     "RemoveFavoriteUseCase",

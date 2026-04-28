@@ -1,7 +1,3 @@
-"""
-Доменные сущности для ароматов.
-"""
-
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -38,6 +34,8 @@ class Perfume:
     family: Optional[str] = None
     gender: Optional[str] = None
     description: Optional[str] = None
+    review_summary: Optional[str] = None
+    category: Optional[str] = None
     image_url: Optional[str] = None
     source_url: Optional[str] = None
     notes: list[PerfumeNote] = field(default_factory=list)
@@ -49,7 +47,6 @@ class Perfume:
         return f"Perfume(id={self.id}, name={self.name!r}, brand={self.brand!r})"
 
     def get_note_pyramid(self) -> NotePyramid:
-        """Получить пирамиду нот аромата."""
         top = []
         middle = []
         base = []

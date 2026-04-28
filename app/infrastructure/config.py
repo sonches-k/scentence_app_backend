@@ -1,16 +1,8 @@
-"""
-Конфигурация приложения.
-
-Загрузка переменных окружения и настроек.
-"""
-
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
-import secrets
 
 
 class Settings(BaseSettings):
-    """Настройки приложения из переменных окружения."""
 
     # Database
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/perfume_db"
@@ -18,23 +10,16 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: Optional[str] = None
 
-    # OpenAI API
-    OPENAI_API_KEY: Optional[str] = None
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
-    LLM_MODEL: str = "gpt-4-turbo-preview"
-
     # DeepSeek API
     DEEPSEEK_API_KEY: Optional[str] = None
     DEEPSEEK_MODEL: str = "deepseek-chat"
 
     # Security
-    SECRET_KEY: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # JWT
     JWT_SECRET: str = "change-this-jwt-secret-in-production"
-    JWT_EXPIRE_DAYS: int = 7  # устарело, оставлено для совместимости
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Email
@@ -57,22 +42,16 @@ class Settings(BaseSettings):
         "http://localhost:8000",
     ]
 
-    # Embedding settings
-    EMBEDDING_DIMENSION: int = 1024  # multilingual-e5-large
-    EMBEDDING_BATCH_SIZE: int = 100
-
     # Search settings
     DEFAULT_SEARCH_LIMIT: int = 5
     MAX_SEARCH_QUERY_LENGTH: int = 1000
     MIN_SEARCH_QUERY_LENGTH: int = 3
 
-    # Rate limiting
-    RATE_LIMIT_PER_MINUTE: int = 60
+    # Embedding settings (используются скриптами)
+    EMBEDDING_DIMENSION: int = 1024
+    EMBEDDING_BATCH_SIZE: int = 100
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
 
-# Singleton для настроек
 settings = Settings()

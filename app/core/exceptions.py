@@ -16,3 +16,9 @@ class TooManyAttemptsError(Exception):
 
 class InvalidRefreshTokenError(Exception):
     pass
+
+
+class LLMTimeoutError(Exception):
+    """Внешний LLM-сервис не ответил в пределах настроенного таймаута."""
+
+    pass

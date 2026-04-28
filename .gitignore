@@ -111,3 +111,15 @@ data/model_baseline/
 coverage_report/
 test_report.html
 test_report_e2e.html
+
+# Microsoft Office documents and their lock files
+*.docx
+*.xlsx
+*.pptx
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Internal one-off scripts
+scripts/generate_tz.py
+scripts/generate_tz_v2.py

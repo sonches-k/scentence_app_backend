@@ -1,13 +1,3 @@
-"""
-Главный файл приложения FastAPI.
-
-Точка входа для сервера.
-Использует Clean Architecture с разделением на слои:
-- core: доменная логика и use cases
-- infrastructure: БД, внешние сервисы
-- api: HTTP интерфейс
-"""
-
 import logging
 
 from fastapi import FastAPI
@@ -64,7 +54,6 @@ app.include_router(
 
 @app.get("/")
 async def root():
-    """Корневой эндпоинт для проверки работоспособности API."""
     return {
         "message": "Perfume Selection API",
         "version": "0.1.0",
@@ -75,7 +64,6 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check эндпоинт."""
     return {"status": "healthy"}
 
 

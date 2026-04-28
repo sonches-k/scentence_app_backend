@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.core.entities import NotePyramid, PerfumeWithRelevance
+from app.core.exceptions import PerfumeNotFoundError
 from app.core.value_objects import SearchFilters
 from app.core.interfaces import (
     IPerfumeRepository,
@@ -110,14 +111,13 @@ class SemanticSearchUseCase:
         query: str,
         filters: Optional[SearchFilters] = None,
         limit: int = 5,
-        user_id: Optional[int] = None,
     ) -> SearchResult:
         query = normalize_query(query)
         filter_dict = filters.to_dict() if filters else None
 
-        if self._cache and user_id is not None:
-            key = f"search:{user_id}:{query}:{limit}:{_filters_hash(filter_dict)}"
-            cached = self._cache.get(key)
+        cache_key = f"search:{query}:{limit}:{_filters_hash(filter_dict)}"
+        if self._cache:
+            cached = self._cache.get(cache_key)
             if cached:
                 return _search_result_from_dict(cached)
 
@@ -150,11 +150,10 @@ class SemanticSearchUseCase:
                 "tags": tag_names,
             })
 
-        explanation = self._llm_service.generate_search_explanation(
+        explanation, note_pyramid = self._llm_service.generate_search_result(
             query=query,
             perfumes=perfume_dicts,
         )
-        note_pyramid = self._llm_service.extract_note_pyramid(query)
 
         result = SearchResult(
             query=query,
@@ -165,13 +164,19 @@ class SemanticSearchUseCase:
             total_found=len(perfumes_with_relevance),
         )
 
-        if self._cache and user_id is not None:
-            self._cache.set(key, _search_result_to_dict(result), _CACHE_TTL)
+        if self._cache:
+            self._cache.set(cache_key, _search_result_to_dict(result), _CACHE_TTL)
 
         return result
 
 
 class FindSimilarUseCase:
+    """
+    Найти ароматы, похожие на заданный по embedding-вектору.
+
+    Поиск ведётся по cosine-similarity в pgvector. Результат не зависит
+    от пользователя, поэтому кэш — общий (без user_id в ключе).
+    """
 
     def __init__(
         self,
@@ -182,9 +187,15 @@ class FindSimilarUseCase:
         self._cache = cache
 
     def execute(self, perfume_id: int, limit: int = 5) -> list[PerfumeWithRelevance]:
-        if self._cache:
-            key = f"similar:{perfume_id}:{limit}"
-            cached = self._cache.get(key)
+        # Существование проверяется до кэша: иначе при обращении к
+        # удалённому/несуществующему аромату клиент получил бы устаревший
+        # ответ из кэша вместо корректного 404 на API-слое.
+        if self._perfume_repo.get_by_id(perfume_id) is None:
+            raise PerfumeNotFoundError(f"Perfume with id={perfume_id} not found")
+
+        cache_key = f"similar:{perfume_id}:{limit}"
+        if self._cache is not None:
+            cached = self._cache.get(cache_key)
             if cached is not None:
                 return _similar_from_dict(cached)
 
@@ -194,7 +205,7 @@ class FindSimilarUseCase:
             for perfume, score in results
         ]
 
-        if self._cache:
-            self._cache.set(key, _similar_to_dict(perfumes), _CACHE_TTL)
+        if self._cache is not None:
+            self._cache.set(cache_key, _similar_to_dict(perfumes), _CACHE_TTL)
 
         return perfumes

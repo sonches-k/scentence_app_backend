@@ -5,7 +5,7 @@ Unit-тесты для user use cases.
 import pytest
 
 from app.core.entities import User, UserFavorite
-from app.core.exceptions import UserNotFoundError
+from app.core.exceptions import PerfumeNotFoundError, UserNotFoundError
 from app.core.use_cases.user import (
     GetFavoritesUseCase,
     AddFavoriteUseCase,
@@ -56,11 +56,16 @@ class TestGetFavoritesUseCase:
 class TestAddFavoriteUseCase:
 
     def test_add_favorite_success(
-        self, mock_user_repository, mock_perfume_repository, sample_user
+        self,
+        mock_user_repository,
+        mock_perfume_repository,
+        sample_user,
+        sample_perfume,
     ):
-        """Добавление в избранное — возвращает UserFavorite."""
+        """Новое добавление: создаёт запись и возвращает её."""
         mock_user_repository.get_by_id.return_value = sample_user
-        mock_user_repository.is_favorite.return_value = False
+        mock_perfume_repository.get_by_id.return_value = sample_perfume
+        mock_user_repository.get_favorite.return_value = None
         expected = UserFavorite(id=1, user_id=1, perfume_id=10)
         mock_user_repository.add_favorite.return_value = expected
 
@@ -70,14 +75,13 @@ class TestAddFavoriteUseCase:
         )
         result = use_case.execute(user_id=1, perfume_id=10)
 
-        assert result.user_id == 1
-        assert result.perfume_id == 10
+        assert result is expected
         mock_user_repository.add_favorite.assert_called_once_with(1, 10)
 
     def test_add_favorite_user_not_found(
         self, mock_user_repository, mock_perfume_repository
     ):
-        """Несуществующий пользователь — бросает UserNotFoundError."""
+        """Несуществующий пользователь — UserNotFoundError, проверка perfume не выполняется."""
         mock_user_repository.get_by_id.return_value = None
 
         use_case = AddFavoriteUseCase(
@@ -88,20 +92,48 @@ class TestAddFavoriteUseCase:
         with pytest.raises(UserNotFoundError):
             use_case.execute(user_id=99999, perfume_id=1)
 
-    def test_add_favorite_already_exists(
-        self, mock_user_repository, mock_perfume_repository, sample_user, sample_perfume
+        mock_perfume_repository.get_by_id.assert_not_called()
+        mock_user_repository.add_favorite.assert_not_called()
+
+    def test_add_favorite_perfume_not_found(
+        self, mock_user_repository, mock_perfume_repository, sample_user
     ):
-        """Аромат уже в избранном — не добавляет дубликат."""
+        """Несуществующий аромат — PerfumeNotFoundError, запись не создаётся."""
         mock_user_repository.get_by_id.return_value = sample_user
-        mock_user_repository.is_favorite.return_value = True
-        mock_user_repository.get_favorites.return_value = [sample_perfume]
+        mock_perfume_repository.get_by_id.return_value = None
 
         use_case = AddFavoriteUseCase(
             user_repository=mock_user_repository,
             perfume_repository=mock_perfume_repository,
         )
-        use_case.execute(user_id=1, perfume_id=1)
 
+        with pytest.raises(PerfumeNotFoundError):
+            use_case.execute(user_id=1, perfume_id=99999)
+
+        mock_user_repository.get_favorite.assert_not_called()
+        mock_user_repository.add_favorite.assert_not_called()
+
+    def test_add_favorite_idempotent_returns_existing(
+        self,
+        mock_user_repository,
+        mock_perfume_repository,
+        sample_user,
+        sample_perfume,
+    ):
+        """Повторное добавление: возвращает существующую запись с реальным id, без вставки."""
+        mock_user_repository.get_by_id.return_value = sample_user
+        mock_perfume_repository.get_by_id.return_value = sample_perfume
+        existing = UserFavorite(id=42, user_id=1, perfume_id=1)
+        mock_user_repository.get_favorite.return_value = existing
+
+        use_case = AddFavoriteUseCase(
+            user_repository=mock_user_repository,
+            perfume_repository=mock_perfume_repository,
+        )
+        result = use_case.execute(user_id=1, perfume_id=1)
+
+        assert result is existing
+        assert result.id == 42
         mock_user_repository.add_favorite.assert_not_called()
 
 

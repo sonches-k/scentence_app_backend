@@ -1,5 +1,5 @@
 import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +17,7 @@ class FiltersData:
     genders: list[str]
     families: list[str]
     product_types: list[str]
+    categories: list[str] = field(default_factory=list)
 
 
 def perfume_to_dict(p: Perfume) -> dict:
@@ -28,7 +29,9 @@ def perfume_to_dict(p: Perfume) -> dict:
         "product_type": p.product_type,
         "family": p.family,
         "gender": p.gender,
+        "category": p.category,
         "description": p.description,
+        "review_summary": p.review_summary,
         "image_url": p.image_url,
         "source_url": p.source_url,
         "notes": [
@@ -52,7 +55,9 @@ def perfume_from_dict(d: dict) -> Perfume:
         product_type=d.get("product_type"),
         family=d.get("family"),
         gender=d.get("gender"),
+        category=d.get("category"),
         description=d.get("description"),
+        review_summary=d.get("review_summary"),
         image_url=d.get("image_url"),
         source_url=d.get("source_url"),
         notes=notes,
@@ -91,8 +96,8 @@ class GetFiltersUseCase:
         self._cache = cache
 
     def execute(self) -> FiltersData:
-        # v2: без brands и notes (они на отдельных suggest-эндпоинтах)
-        key = "filters:v2"
+        # v7: все ароматы получили категорию, удалены атомайзеры Travalo
+        key = "filters:v7"
         if self._cache:
             cached = self._cache.get(key)
             if cached:
@@ -102,6 +107,7 @@ class GetFiltersUseCase:
             genders=self._perfume_repo.get_unique_genders(),
             families=self._perfume_repo.get_unique_families(),
             product_types=self._perfume_repo.get_unique_product_types(),
+            categories=self._perfume_repo.get_unique_categories(),
         )
         if self._cache:
             self._cache.set(key, dataclasses.asdict(result), _CACHE_TTL)

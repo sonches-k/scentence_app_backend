@@ -23,10 +23,12 @@ services:
     restart: unless-stopped
 
   # ── Одноразовая инициализация БД и загрузка данных ─────────────────────────
-  # Запускать вручную: docker compose run --rm init
+  # Запускать ТОЛЬКО вручную: docker compose --profile init run --rm init
+  # НЕ запускается при обычном docker compose up
   init:
     build: .
     env_file: .env
+    profiles: ["init"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-perfume_db}
     command: >

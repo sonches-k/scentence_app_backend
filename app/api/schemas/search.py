@@ -1,7 +1,3 @@
-"""
-Pydantic схемы для API - модели поиска.
-"""
-
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from app.api.schemas.perfume import PerfumeWithRelevance, NotePyramid
@@ -12,7 +8,7 @@ class SearchFilters(BaseModel):
     Структурные фильтры для уточнения семантического поиска.
 
     Все поля опциональны и применяются совместно (AND-логика).
-    Доступные значения для каждого поля возвращает `GET /perfumes/filters/all`.
+    Доступные значения для каждого поля возвращает `GET /perfumes/filters`.
     """
 
     genders: Optional[List[str]] = Field(
@@ -68,14 +64,6 @@ class SearchFilters(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    """
-    Запрос на семантический поиск ароматов.
-
-    Основной параметр — свободное текстовое описание на русском языке.
-    Система преобразует его в вектор (embedding) и находит ароматы
-    с наименьшим косинусным расстоянием в пространстве признаков.
-    """
-
     query: str = Field(
         ...,
         min_length=3,
@@ -123,13 +111,6 @@ class SearchRequest(BaseModel):
 
 
 class SearchResponse(BaseModel):
-    """
-    Ответ семантического поиска.
-
-    Содержит пирамиду нот (интерпретацию запроса через LLM),
-    текстовое пояснение и список ароматов с оценкой релевантности.
-    """
-
     query: str = Field(..., description="Исходный запрос пользователя")
     note_pyramid: NotePyramid = Field(
         ...,
@@ -159,25 +140,7 @@ class SearchResponse(BaseModel):
     )
 
 
-class SimilarSearchRequest(BaseModel):
-    """Параметры поиска похожих ароматов."""
-
-    limit: int = Field(
-        5,
-        ge=1,
-        le=20,
-        description="Количество похожих ароматов в ответе (1–20)",
-    )
-
-
 class SimilarSearchResponse(BaseModel):
-    """
-    Ответ на запрос похожих ароматов.
-
-    Использует векторное расстояние (cosine distance) между эмбеддингами
-    ароматов в пространстве pgvector (312 измерений).
-    """
-
     source_perfume_id: int = Field(
         ...,
         description="ID аромата, для которого выполнялся поиск",

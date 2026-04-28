@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 
 from app.infrastructure.config import settings
 from app.infrastructure.database import get_db, SQLAlchemyPerfumeRepository, SQLAlchemyUserRepository
-from app.infrastructure.external import OpenAIEmbeddingService, OpenAILLMService, DeepSeekLLMService
-from app.infrastructure.external.embedding_service import SentenceTransformerEmbeddingService
+from app.infrastructure.external import DeepSeekLLMService, SentenceTransformerEmbeddingService
 from app.core.entities import User
 from app.core.interfaces import (
     IPerfumeRepository,
@@ -29,6 +28,7 @@ from app.core.use_cases import (
     GetFiltersUseCase,
     SuggestBrandsUseCase,
     SuggestNotesUseCase,
+    UpdateProfileUseCase,
     GetFavoritesUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
@@ -38,8 +38,9 @@ from app.core.use_cases import (
     RegisterUseCase,
     LoginUseCase,
     VerifyCodeUseCase,
+    RefreshTokenUseCase,
+    LogoutUseCase,
 )
-from app.core.use_cases.auth import RefreshTokenUseCase, LogoutUseCase
 
 
 def get_perfume_repository(db: Session = Depends(get_db)) -> IPerfumeRepository:
@@ -50,14 +51,6 @@ def get_user_repository(db: Session = Depends(get_db)) -> IUserRepository:
     return SQLAlchemyUserRepository(db)
 
 
-def _is_valid_openai_key(key: str | None) -> bool:
-    if not key:
-        return False
-    if key.startswith("sk-your") or key == "sk-your-api-key-here":
-        return False
-    return key.startswith("sk-") and len(key) > 20
-
-
 def _is_valid_deepseek_key(key: str | None) -> bool:
     if not key:
         return False
@@ -66,23 +59,19 @@ def _is_valid_deepseek_key(key: str | None) -> bool:
 
 @lru_cache()
 def get_embedding_service() -> IEmbeddingService:
-    if _is_valid_openai_key(settings.OPENAI_API_KEY):
-        return OpenAIEmbeddingService()
+    """Embedding-сервис: локальная модель intfloat/multilingual-e5-large (1024 dim)."""
     return SentenceTransformerEmbeddingService("intfloat/multilingual-e5-large")
 
 
 @lru_cache()
 def get_llm_service() -> ILLMService:
-    """Приоритет: OpenAI → DeepSeek."""
-    if _is_valid_openai_key(settings.OPENAI_API_KEY):
-        logger.info("LLM: используется OpenAILLMService")
-        return OpenAILLMService()
-    if _is_valid_deepseek_key(settings.DEEPSEEK_API_KEY):
-        logger.info("LLM: используется DeepSeekLLMService")
-        return DeepSeekLLMService()
-    raise RuntimeError(
-        "LLM-сервис не сконфигурирован: задайте DEEPSEEK_API_KEY или OPENAI_API_KEY в .env"
-    )
+    """LLM-сервис: DeepSeek Chat."""
+    if not _is_valid_deepseek_key(settings.DEEPSEEK_API_KEY):
+        raise RuntimeError(
+            "LLM-сервис не сконфигурирован: задайте корректный DEEPSEEK_API_KEY в .env"
+        )
+    logger.info("LLM: используется DeepSeekLLMService")
+    return DeepSeekLLMService()
 
 
 def get_email_service() -> IEmailService:
@@ -112,6 +101,7 @@ _http_bearer = HTTPBearer(auto_error=False)
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
     user_repo: IUserRepository = Depends(get_user_repository),
+    jwt_service: IJWTService = Depends(get_jwt_service),
 ) -> User:
     if not credentials:
         raise HTTPException(
@@ -120,8 +110,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
-        from app.infrastructure.security.jwt_handler import decode_access_token
-        user_id = decode_access_token(credentials.credentials)
+        user_id = jwt_service.decode_token(credentials.credentials)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -137,12 +126,12 @@ def get_current_user(
 def get_optional_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_http_bearer),
     user_repo: IUserRepository = Depends(get_user_repository),
+    jwt_service: IJWTService = Depends(get_jwt_service),
 ) -> Optional[User]:
     if not credentials:
         return None
     try:
-        from app.infrastructure.security.jwt_handler import decode_access_token
-        user_id = decode_access_token(credentials.credentials)
+        user_id = jwt_service.decode_token(credentials.credentials)
         return user_repo.get_by_id(user_id)
     except Exception:
         return None
@@ -195,6 +184,12 @@ def get_suggest_notes_use_case(
     cache: Optional[ICacheService] = Depends(get_cache_service),
 ) -> SuggestNotesUseCase:
     return SuggestNotesUseCase(perfume_repository=perfume_repo, cache=cache)
+
+
+def get_update_profile_use_case(
+    user_repo: IUserRepository = Depends(get_user_repository),
+) -> UpdateProfileUseCase:
+    return UpdateProfileUseCase(user_repository=user_repo)
 
 
 def get_favorites_use_case(

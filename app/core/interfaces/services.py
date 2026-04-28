@@ -19,11 +19,8 @@ class IEmbeddingService(ABC):
 class ILLMService(ABC):
 
     @abstractmethod
-    def generate_search_explanation(self, query: str, perfumes: list[dict]) -> str:
-        pass
-
-    @abstractmethod
-    def extract_note_pyramid(self, query: str) -> NotePyramid:
+    def generate_search_result(self, query: str, perfumes: list[dict]) -> tuple[str, NotePyramid]:
+        """Один вызов LLM: возвращает (объяснение, пирамида нот из реальных находок)."""
         pass
 
 

@@ -55,6 +55,10 @@ class IPerfumeRepository(ABC):
         pass
 
     @abstractmethod
+    def get_unique_categories(self) -> list[str]:
+        pass
+
+    @abstractmethod
     def suggest_brands(self, q: str, limit: int = 20) -> list[str]:
         """Топ брендов по количеству ароматов (q='') или ILIKE-поиск."""
         pass
@@ -93,6 +97,17 @@ class IUserRepository(ABC):
 
     @abstractmethod
     def is_favorite(self, user_id: int, perfume_id: int) -> bool:
+        pass
+
+    @abstractmethod
+    def get_favorite(self, user_id: int, perfume_id: int) -> Optional[UserFavorite]:
+        """
+        Получить запись избранного по паре (user_id, perfume_id).
+
+        Возвращает None, если связи нет.
+        Не выбрасывает исключение — отсутствие записи это валидное состояние,
+        вызывающий слой решает, что с этим делать.
+        """
         pass
 
     @abstractmethod
@@ -147,8 +162,4 @@ class IUserRepository(ABC):
 
     @abstractmethod
     def delete_refresh_token(self, token: str) -> None:
-        pass
-
-    @abstractmethod
-    def delete_user_refresh_tokens(self, user_id: int) -> None:
         pass

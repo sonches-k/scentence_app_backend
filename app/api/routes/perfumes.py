@@ -1,7 +1,3 @@
-"""
-API эндпоинты для работы с ароматами.
-"""
-
 import hashlib
 import json
 
@@ -27,7 +23,6 @@ router = APIRouter()
 
 
 def _perfume_to_response(perfume) -> PerfumeResponse:
-    """Конвертировать доменную сущность в API схему."""
     notes = [
         PerfumeNoteResponse(
             note=Note(
@@ -78,15 +73,12 @@ async def get_filters(
     response: Response,
     use_case: GetFiltersUseCase = Depends(get_filters_use_case),
 ):
-    """
-    Статические фильтры: пол, семейство, тип продукта.
-    Бренды и ноты — через /brands/suggest и /notes/suggest.
-    """
     filters = use_case.execute()
     data = {
         "genders": filters.genders,
         "families": filters.families,
         "product_types": filters.product_types,
+        "categories": filters.categories,
     }
     etag = _compute_etag(data)
     if request.headers.get("if-none-match") == etag:
@@ -103,9 +95,6 @@ async def suggest_brands(
     limit: int = 20,
     use_case: SuggestBrandsUseCase = Depends(get_suggest_brands_use_case),
 ):
-    """
-    Подсказки брендов. Без q — топ по количеству ароматов. С q — ILIKE-поиск.
-    """
     return use_case.execute(q=q.strip(), limit=limit)
 
 
@@ -115,9 +104,6 @@ async def suggest_notes(
     limit: int = 20,
     use_case: SuggestNotesUseCase = Depends(get_suggest_notes_use_case),
 ):
-    """
-    Подсказки нот. Без q — топ по частоте использования. С q — ILIKE-поиск.
-    """
     return use_case.execute(q=q.strip(), limit=limit)
 
 
@@ -126,11 +112,6 @@ async def get_perfume(
     perfume_id: int,
     use_case: GetPerfumeUseCase = Depends(get_perfume_use_case),
 ):
-    """
-    Получить детальную информацию об аромате.
-
-    - **perfume_id**: ID аромата
-    """
     try:
         perfume = use_case.execute(perfume_id)
         return _perfume_to_response(perfume)

@@ -1,24 +1,21 @@
-"""
-API эндпоинты для работы с пользователями.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.converters import perfume_to_card
 from app.api.schemas.perfume import PerfumeCard
 from app.api.schemas.auth import ProfileResponse, UpdateProfileRequest
 from app.api.dependencies import (
+    get_update_profile_use_case,
     get_favorites_use_case,
     get_add_favorite_use_case,
     get_remove_favorite_use_case,
     get_search_history_use_case,
     get_delete_search_history_entry_use_case,
     get_clear_search_history_use_case,
-    get_user_repository,
     get_current_user,
 )
 from app.core.entities import User
-from app.core.interfaces import IUserRepository
 from app.core.use_cases import (
+    UpdateProfileUseCase,
     GetFavoritesUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
@@ -26,36 +23,15 @@ from app.core.use_cases import (
     DeleteSearchHistoryEntryUseCase,
     ClearSearchHistoryUseCase,
 )
-from app.core.exceptions import UserNotFoundError
+from app.core.exceptions import PerfumeNotFoundError, UserNotFoundError
 
 router = APIRouter()
-
-
-def _perfume_to_card(perfume) -> PerfumeCard:
-    """Конвертировать доменную сущность в карточку."""
-    top_notes = [pn.note.name for pn in perfume.notes if pn.level.lower() == "top"][:5]
-    middle_notes = [pn.note.name for pn in perfume.notes if pn.level.lower() == "middle"][:5]
-    base_notes = [pn.note.name for pn in perfume.notes if pn.level.lower() == "base"][:5]
-
-    return PerfumeCard(
-        id=perfume.id,
-        name=perfume.name,
-        brand=perfume.brand,
-        image_url=perfume.image_url,
-        source_url=perfume.source_url,
-        family=perfume.family,
-        gender=perfume.gender,
-        top_notes=top_notes,
-        middle_notes=middle_notes,
-        base_notes=base_notes,
-    )
 
 
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile(
     current_user: User = Depends(get_current_user),
 ):
-    """Получить профиль текущего пользователя."""
     return ProfileResponse(
         id=current_user.id,
         email=current_user.email,
@@ -67,10 +43,9 @@ async def get_profile(
 async def update_profile(
     request: UpdateProfileRequest,
     current_user: User = Depends(get_current_user),
-    user_repo: IUserRepository = Depends(get_user_repository),
+    use_case: UpdateProfileUseCase = Depends(get_update_profile_use_case),
 ):
-    """Обновить имя пользователя (2–50 символов)."""
-    updated = user_repo.update_name(current_user.id, request.name)
+    updated = use_case.execute(current_user.id, request.name)
     return ProfileResponse(
         id=updated.id,
         email=updated.email,
@@ -83,10 +58,9 @@ async def get_favorites(
     use_case: GetFavoritesUseCase = Depends(get_favorites_use_case),
     current_user: User = Depends(get_current_user),
 ):
-    """Получить список избранных ароматов пользователя."""
     try:
         perfumes = use_case.execute(current_user.id)
-        return [_perfume_to_card(p) for p in perfumes]
+        return [perfume_to_card(p) for p in perfumes]
     except UserNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -100,15 +74,26 @@ async def add_favorite(
     use_case: AddFavoriteUseCase = Depends(get_add_favorite_use_case),
     current_user: User = Depends(get_current_user),
 ):
-    """Добавить аромат в избранное."""
+    """
+    Добавить аромат в избранное.
+
+    Возвращает 404, если запрошенный аромат не существует.
+    Операция идемпотентна: повторный вызов для уже добавленного аромата
+    возвращает существующую запись избранного.
+    """
     try:
         favorite = use_case.execute(current_user.id, perfume_id)
-        return {"message": "Added to favorites", "id": favorite.id}
     except UserNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+    except PerfumeNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfume not found",
+        )
+    return {"message": "Added to favorites", "id": favorite.id}
 
 
 @router.delete("/favorites/{perfume_id}")
@@ -117,7 +102,6 @@ async def remove_favorite(
     use_case: RemoveFavoriteUseCase = Depends(get_remove_favorite_use_case),
     current_user: User = Depends(get_current_user),
 ):
-    """Удалить аромат из избранного."""
     try:
         removed = use_case.execute(current_user.id, perfume_id)
         if removed:
@@ -139,7 +123,6 @@ async def get_history(
     current_user: User = Depends(get_current_user),
     limit: int = 100,
 ):
-    """Получить историю поиска пользователя."""
     try:
         history = use_case.execute(current_user.id, limit)
         return [
@@ -163,7 +146,6 @@ async def clear_history(
     use_case: ClearSearchHistoryUseCase = Depends(get_clear_search_history_use_case),
     current_user: User = Depends(get_current_user),
 ):
-    """Очистить всю историю поиска пользователя."""
     use_case.execute(current_user.id)
 
 
@@ -173,7 +155,6 @@ async def delete_history_entry(
     use_case: DeleteSearchHistoryEntryUseCase = Depends(get_delete_search_history_entry_use_case),
     current_user: User = Depends(get_current_user),
 ):
-    """Удалить конкретную запись из истории поиска."""
     deleted = use_case.execute(user_id=current_user.id, entry_id=entry_id)
     if not deleted:
         raise HTTPException(

@@ -14,10 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class EmailService(IEmailService):
-    """Отправка email с кодом подтверждения."""
 
     def send_verification_code(self, email: str, code: str) -> None:
-        """Отправить код подтверждения на указанный email."""
         if settings.EMAIL_BACKEND == "smtp":
             self._send_smtp(email, code)
         else:
@@ -32,7 +30,6 @@ class EmailService(IEmailService):
         logger.info("=" * 60)
 
     def _send_smtp(self, email: str, code: str) -> None:
-        """Отправить email через SMTP."""
         import smtplib
         from email.mime.text import MIMEText
 

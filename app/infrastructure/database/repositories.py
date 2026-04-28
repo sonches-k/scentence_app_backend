@@ -1,7 +1,7 @@
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, distinct, exists, func
 
 from app.core.entities import (
@@ -63,6 +63,8 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
             family=model.family,
             gender=model.gender,
             description=model.description,
+            review_summary=model.review_summary,
+            category=model.category,
             image_url=model.image_url,
             source_url=model.source_url,
             notes=notes,
@@ -95,7 +97,8 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         if "genders" in filters and filters["genders"]:
             query = query.filter(PerfumeModel.gender.in_(filters["genders"]))
         if "families" in filters and filters["families"]:
-            query = query.filter(PerfumeModel.family.in_(filters["families"]))
+            normalized = [f.lower() for f in filters["families"]]
+            query = query.filter(func.lower(PerfumeModel.family).in_(normalized))
         if "product_types" in filters and filters["product_types"]:
             query = query.filter(
                 PerfumeModel.product_type.in_(filters["product_types"])
@@ -181,8 +184,14 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         return [(self._to_entity(model), score) for model, score in results]
 
     def get_unique_families(self) -> list[str]:
-        result = self._session.query(distinct(PerfumeModel.family)).all()
-        return sorted([r[0] for r in result if r[0]])
+        result = self._session.query(distinct(func.lower(PerfumeModel.family))).all()
+        seen = set()
+        out = []
+        for (val,) in result:
+            if val and val not in seen:
+                seen.add(val)
+                out.append(val[0].upper() + val[1:])
+        return sorted(out)
 
     def get_unique_genders(self) -> list[str]:
         result = self._session.query(distinct(PerfumeModel.gender)).all()
@@ -190,6 +199,10 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
 
     def get_unique_product_types(self) -> list[str]:
         result = self._session.query(distinct(PerfumeModel.product_type)).all()
+        return sorted([r[0] for r in result if r[0]])
+
+    def get_unique_categories(self) -> list[str]:
+        result = self._session.query(distinct(PerfumeModel.category)).all()
         return sorted([r[0] for r in result if r[0]])
 
     def suggest_brands(self, q: str, limit: int = 20) -> list[str]:
@@ -270,16 +283,18 @@ class SQLAlchemyUserRepository(IUserRepository):
         return self._to_entity(model)
 
     def get_favorites(self, user_id: int) -> list[Perfume]:
-        favorites = self._session.query(UserFavoriteModel).filter(
-            UserFavoriteModel.user_id == user_id
-        ).all()
-
-        perfumes = []
-        for fav in favorites:
-            perfume = self._perfume_repo.get_by_id(fav.perfume_id)
-            if perfume:
-                perfumes.append(perfume)
-        return perfumes
+        # Один JOIN-запрос вместо N+1: сразу подтягиваем ноты и теги через joinedload.
+        models = (
+            self._session.query(PerfumeModel)
+            .join(UserFavoriteModel, UserFavoriteModel.perfume_id == PerfumeModel.id)
+            .filter(UserFavoriteModel.user_id == user_id)
+            .options(
+                joinedload(PerfumeModel.notes).joinedload(PerfumeNoteModel.note),
+                joinedload(PerfumeModel.tags),
+            )
+            .all()
+        )
+        return [self._perfume_repo._to_entity(m) for m in models]
 
     def add_favorite(self, user_id: int, perfume_id: int) -> UserFavorite:
         model = UserFavoriteModel(user_id=user_id, perfume_id=perfume_id)
@@ -301,12 +316,22 @@ class SQLAlchemyUserRepository(IUserRepository):
         self._session.commit()
         return result > 0
 
-    def is_favorite(self, user_id: int, perfume_id: int) -> bool:
-        result = self._session.query(UserFavoriteModel).filter(
+    def get_favorite(self, user_id: int, perfume_id: int) -> Optional[UserFavorite]:
+        model = self._session.query(UserFavoriteModel).filter(
             UserFavoriteModel.user_id == user_id,
             UserFavoriteModel.perfume_id == perfume_id,
         ).first()
-        return result is not None
+        if model is None:
+            return None
+        return UserFavorite(
+            id=model.id,
+            user_id=model.user_id,
+            perfume_id=model.perfume_id,
+            added_at=model.added_at,
+        )
+
+    def is_favorite(self, user_id: int, perfume_id: int) -> bool:
+        return self.get_favorite(user_id, perfume_id) is not None
 
     def get_search_history(
         self,
@@ -337,6 +362,29 @@ class SQLAlchemyUserRepository(IUserRepository):
         query_text: str,
         filters: Optional[dict] = None,
     ) -> SearchHistoryEntry:
+        normalized = filters or {}
+        existing = (
+            self._session.query(SearchHistoryModel)
+            .filter(
+                SearchHistoryModel.user_id == user_id,
+                SearchHistoryModel.query_text == query_text,
+            )
+            .all()
+        )
+        for record in existing:
+            if (record.filters or {}) == normalized:
+                record.created_at = datetime.now(timezone.utc)
+                record.filters = filters
+                self._session.commit()
+                self._session.refresh(record)
+                return SearchHistoryEntry(
+                    id=record.id,
+                    user_id=record.user_id,
+                    query_text=record.query_text,
+                    filters=record.filters,
+                    created_at=record.created_at,
+                )
+
         model = SearchHistoryModel(
             user_id=user_id,
             query_text=query_text,
@@ -455,8 +503,3 @@ class SQLAlchemyUserRepository(IUserRepository):
         ).delete()
         self._session.commit()
 
-    def delete_user_refresh_tokens(self, user_id: int) -> None:
-        self._session.query(RefreshTokenModel).filter(
-            RefreshTokenModel.user_id == user_id
-        ).delete()
-        self._session.commit()

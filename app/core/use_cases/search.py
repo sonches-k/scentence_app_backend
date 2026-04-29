@@ -1,12 +1,16 @@
 import hashlib
 import json
+import logging
 import re
+import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
 from app.core.entities import NotePyramid, PerfumeWithRelevance
+
+logger = logging.getLogger(__name__)
 from app.core.exceptions import PerfumeNotFoundError
 from app.core.value_objects import SearchFilters
 from app.core.interfaces import (
@@ -119,17 +123,22 @@ class SemanticSearchUseCase:
         if self._cache:
             cached = self._cache.get(cache_key)
             if cached:
+                logger.info("search_timing query=%r cached=true", query[:60])
                 return _search_result_from_dict(cached)
 
+        _t0 = time.perf_counter()
         query_embedding = self._embedding_service.generate_embedding(query)
+        _t_embed = time.perf_counter()
+
         results = self._perfume_repo.search_by_embedding(
             embedding=query_embedding,
             limit=limit,
             filters=filter_dict,
         )
+        _t_pgvector = time.perf_counter()
 
         perfumes_with_relevance = [
-            PerfumeWithRelevance(perfume=perfume, relevance=score)
+            PerfumeWithRelevance(perfume=perfume, relevance=max(0.0, min(1.0, score)))
             for perfume, score in results
         ]
 
@@ -153,6 +162,16 @@ class SemanticSearchUseCase:
         explanation, note_pyramid = self._llm_service.generate_search_result(
             query=query,
             perfumes=perfume_dicts,
+        )
+        _t_llm = time.perf_counter()
+
+        logger.info(
+            "search_timing query=%r embedding_ms=%.0f pgvector_ms=%.0f llm_ms=%.0f total_ms=%.0f cached=false",
+            query[:60],
+            (_t_embed - _t0) * 1000,
+            (_t_pgvector - _t_embed) * 1000,
+            (_t_llm - _t_pgvector) * 1000,
+            (_t_llm - _t0) * 1000,
         )
 
         result = SearchResult(
@@ -201,7 +220,7 @@ class FindSimilarUseCase:
 
         results = self._perfume_repo.find_similar(perfume_id=perfume_id, limit=limit)
         perfumes = [
-            PerfumeWithRelevance(perfume=perfume, relevance=score)
+            PerfumeWithRelevance(perfume=perfume, relevance=max(0.0, min(1.0, score)))
             for perfume, score in results
         ]
 

@@ -1,16 +1,9 @@
-"""
-E2E-тесты use cases с реальными зависимостями.
-
-Запуск: pytest tests/e2e/test_use_cases.py -v
-Требует: PostgreSQL с данными, DeepSeek API, sentence-transformers.
-"""
-
 import pytest
 
 from app.core.entities import Perfume, PerfumeWithRelevance
-from app.core.exceptions import PerfumeNotFoundError, UserNotFoundError
+from app.core.exceptions import PerfumeNotFoundError
 from app.core.use_cases.search import SemanticSearchUseCase, FindSimilarUseCase, SearchResult
-from app.core.use_cases.perfume import GetPerfumeUseCase, GetFiltersUseCase, GetBrandsUseCase
+from app.core.use_cases.perfume import GetPerfumeUseCase, GetFiltersUseCase
 from app.core.use_cases.user import (
     GetFavoritesUseCase,
     AddFavoriteUseCase,
@@ -129,28 +122,15 @@ class TestGetPerfumeE2E:
 class TestGetFiltersE2E:
 
     def test_get_filters(self, perfume_repo):
-        """Фильтры — все категории непустые."""
+        """Фильтры возвращают непустые списки для seed-данных."""
         use_case = GetFiltersUseCase(perfume_repository=perfume_repo)
 
         filters = use_case.execute()
 
         assert len(filters.genders) > 0
         assert len(filters.families) > 0
-        assert len(filters.brands) > 0
-        assert len(filters.notes) > 0
         assert len(filters.product_types) > 0
-
-
-class TestGetBrandsE2E:
-
-    def test_get_brands(self, perfume_repo):
-        """Бренды — непустой отсортированный список."""
-        use_case = GetBrandsUseCase(perfume_repository=perfume_repo)
-
-        brands = use_case.execute()
-
-        assert len(brands) > 0
-        assert brands == sorted(brands)
+        assert len(filters.categories) > 0
 
 
 class TestAuthWorkflowE2E:

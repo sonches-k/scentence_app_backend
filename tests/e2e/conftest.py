@@ -1,87 +1,161 @@
-"""
-Fixtures для e2e-тестов.
-
-Требуют реальную PostgreSQL, DeepSeek API, sentence-transformers.
-Запуск: pytest tests/e2e/ -v
-"""
+import os
+import random
 
 import pytest
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from app.core.interfaces import IEmbeddingService
 from app.infrastructure.config import settings
-from app.infrastructure.database.connection import SessionLocal
+from app.infrastructure.database.models import Base
 from app.infrastructure.database.repositories import (
     SQLAlchemyPerfumeRepository,
     SQLAlchemyUserRepository,
 )
-from app.infrastructure.external.embedding_service import SentenceTransformerEmbeddingService
-from app.infrastructure.external.deepseek_service import DeepSeekLLMService
 from app.infrastructure.security.jwt_handler import JWTService
 from app.infrastructure.services.email_service import EmailService
 
+_TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql://postgres:password@localhost:5434/perfume_test",
+)
+
+_EMBEDDING_DIM = 1024
+
+
+class FakeEmbeddingService(IEmbeddingService):
+    """Deterministic fake embeddings — no model loading required."""
+
+    dimension: int = _EMBEDDING_DIM
+
+    def generate_embedding(self, text: str) -> list[float]:
+        rng = random.Random(hash(text) & 0xFFFFFFFF)
+        vec = [rng.gauss(0.0, 1.0) for _ in range(_EMBEDDING_DIM)]
+        norm = sum(x * x for x in vec) ** 0.5 or 1.0
+        return [x / norm for x in vec]
+
+    def generate_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
+        return [self.generate_embedding(t) for t in texts]
+
+
+# ── Test DB lifecycle (session scoped) ──────────────────────────────────────
+
+@pytest.fixture(scope="session")
+def test_engine():
+    engine = create_engine(_TEST_DATABASE_URL)
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+    Base.metadata.create_all(engine)
+    yield engine
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def seed_perfumes(test_engine) -> list[int]:
+    """
+    Insert 5 test perfumes with fake 1024-dim embeddings.
+    Committed once for the whole session; cleaned up by drop_all in test_engine.
+    """
+    from app.infrastructure.database.models import (
+        NoteModel,
+        PerfumeEmbeddingModel,
+        PerfumeModel,
+        PerfumeNoteModel,
+    )
+
+    _PERFUMES = [
+        {"name": "Rose Garden", "brand": "TestBrand", "gender": "Female",
+         "family": "Floral", "product_type": "EDP", "category": "Люкс",
+         "description": "Нежный цветочный аромат"},
+        {"name": "Ocean Breeze", "brand": "TestBrand", "gender": "Male",
+         "family": "Fresh", "product_type": "EDT", "category": "Масс-маркет",
+         "description": "Свежий морской аромат"},
+        {"name": "Oud Noir", "brand": "ArabBrand", "gender": "Unisex",
+         "family": "Oriental", "product_type": "Parfum", "category": "Восточная",
+         "description": "Глубокий восточный аромат"},
+        {"name": "Vanilla Dream", "brand": "TestBrand", "gender": "Female",
+         "family": "Gourmand", "product_type": "EDP", "category": "Селективная",
+         "description": "Сладкий ванильный аромат"},
+        {"name": "Forest Walk", "brand": "NicheBrand", "gender": "Male",
+         "family": "Woody", "product_type": "EDP", "category": "Нишевая",
+         "description": "Древесный аромат с мхом"},
+    ]
+
+    fake = FakeEmbeddingService()
+
+    with Session(test_engine) as session:
+        note_citrus = NoteModel(name="Бергамот-тест", category="Citrus")
+        note_floral = NoteModel(name="Роза-тест", category="Floral")
+        session.add_all([note_citrus, note_floral])
+        session.flush()
+
+        ids = []
+        for data in _PERFUMES:
+            perfume = PerfumeModel(**data)
+            session.add(perfume)
+            session.flush()
+            session.add(PerfumeNoteModel(perfume_id=perfume.id, note_id=note_citrus.id, level="Top"))
+            session.add(PerfumeNoteModel(perfume_id=perfume.id, note_id=note_floral.id, level="Middle"))
+            emb = fake.generate_embedding(f"{data['name']} {data['description']}")
+            session.add(PerfumeEmbeddingModel(perfume_id=perfume.id, embedding=emb))
+            ids.append(perfume.id)
+
+        session.commit()
+
+    return ids
+
+
+# ── Per-test session ─────────────────────────────────────────────────────────
 
 @pytest.fixture
-def db_session():
-    """Реальная сессия PostgreSQL с откатом после каждого теста."""
-    session = SessionLocal()
-    try:
+def db_session(test_engine, seed_perfumes):
+    """
+    Fresh session per test. Uncommitted changes are rolled back on teardown.
+    Committed changes (e.g. users created by auth tests) persist within the
+    session but are wiped when the test DB is dropped at the end of the run.
+    """
+    with Session(test_engine) as session:
         yield session
-    finally:
         session.rollback()
-        session.close()
 
 
 @pytest.fixture
-def existing_perfume_id(db_session: Session) -> int:
-    """ID существующего аромата в БД."""
-    from sqlalchemy import text
-    row = db_session.execute(text("SELECT id FROM perfumes LIMIT 1")).fetchone()
-    if not row:
-        pytest.skip("В БД нет ароматов")
-    return row[0]
+def existing_perfume_id(seed_perfumes) -> int:
+    return seed_perfumes[0]
 
 
 @pytest.fixture
-def perfume_repo(db_session: Session) -> SQLAlchemyPerfumeRepository:
-    """Реальный репозиторий ароматов."""
+def perfume_repo(db_session) -> SQLAlchemyPerfumeRepository:
     return SQLAlchemyPerfumeRepository(db_session)
 
 
 @pytest.fixture
-def user_repo(db_session: Session) -> SQLAlchemyUserRepository:
-    """Реальный репозиторий пользователей."""
+def user_repo(db_session) -> SQLAlchemyUserRepository:
     return SQLAlchemyUserRepository(db_session)
 
 
 @pytest.fixture(scope="session")
-def embedding_service() -> SentenceTransformerEmbeddingService:
-    """
-    Лёгкая модель для e2e-тестов (rubert-tiny2, 312 dim).
-    Используется вместо продовой intfloat/multilingual-e5-large (1024 dim)
-    ради скорости загрузки. Тесты на семантическое сходство с реальной БД
-    запускать с осторожностью: размерность не совпадает с хранимыми эмбеддингами.
-    scope=session — модель грузится один раз на всю сессию тестов.
-    """
-    return SentenceTransformerEmbeddingService("cointegrated/rubert-tiny2")
+def embedding_service() -> FakeEmbeddingService:
+    return FakeEmbeddingService()
 
 
 @pytest.fixture
-def llm_service() -> DeepSeekLLMService:
-    """Реальный DeepSeek LLM сервис."""
+def llm_service():
     if not settings.DEEPSEEK_API_KEY:
         pytest.skip("DEEPSEEK_API_KEY не задан")
+    from app.infrastructure.external.deepseek_service import DeepSeekLLMService
     return DeepSeekLLMService()
 
 
 @pytest.fixture
 def jwt_service() -> JWTService:
-    """Реальный JWT сервис."""
     return JWTService()
 
 
 @pytest.fixture(autouse=True)
 def _force_console_email():
-    """Подмена EMAIL_BACKEND=console на время теста."""
     original = settings.EMAIL_BACKEND
     settings.EMAIL_BACKEND = "console"
     yield
@@ -90,5 +164,4 @@ def _force_console_email():
 
 @pytest.fixture
 def email_service() -> EmailService:
-    """Email сервис (console backend для тестов)."""
     return EmailService()

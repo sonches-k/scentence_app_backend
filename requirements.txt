@@ -36,6 +36,7 @@ email-validator>=2.1.0  # Обязательно для Pydantic EmailStr
 # Testing
 pytest>=7.4.4
 httpx>=0.26.0
+locust>=2.20.0
 
 # Development
 black>=23.12.1

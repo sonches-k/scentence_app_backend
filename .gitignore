@@ -111,6 +111,11 @@ data/model_baseline/
 coverage_report/
 test_report.html
 test_report_e2e.html
+unit_report.html
+integration_report.html
+e2e_report.html
+*_report.html
+load_test_results/
 
 # Microsoft Office documents and their lock files
 *.docx
@@ -120,6 +125,15 @@ test_report_e2e.html
 ~$*.xlsx
 ~$*.pptx
 
-# Internal one-off scripts
+# Internal one-off scripts (doc generators, utilities, personal analysis)
 scripts/generate_tz.py
 scripts/generate_tz_v2.py
+scripts/generate_*_kt4.py
+scripts/convert_to_html.py
+scripts/parse_timings.py
+scripts/visualize_embeddings_e5.py
+scripts/compare_models_viz.py
+tz_gdocs.html
+
+# Load test tokens (содержат JWT — никогда в git)
+scripts/load_test_tokens.json

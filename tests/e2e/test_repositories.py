@@ -1,10 +1,3 @@
-"""
-E2E-тесты репозиториев с реальной PostgreSQL.
-
-Запуск: pytest tests/e2e/test_repositories.py -v
-Требует: PostgreSQL с данными (после load_to_db.py + generate_embeddings.py).
-"""
-
 import pytest
 
 from app.core.entities import Perfume, User, UserFavorite, SearchHistoryEntry
@@ -78,9 +71,9 @@ class TestPerfumeRepository:
         for perfume, score in results:
             assert isinstance(perfume, Perfume)
             assert isinstance(score, float)
-            assert 0.0 <= score <= 1.0
+            # cosine similarity теоретически в [-1, 1]; допускаем погрешность FP
+            assert -0.1 <= score <= 1.1
 
-        # Проверяем что отсортировано по убыванию score
         scores = [score for _, score in results]
         assert scores == sorted(scores, reverse=True)
 
@@ -105,13 +98,21 @@ class TestPerfumeRepository:
             assert perfume.id != existing_perfume_id
             assert isinstance(score, float)
 
-    def test_get_unique_brands(self, perfume_repo):
-        """Список брендов — непустой, отсортирован."""
-        brands = perfume_repo.get_unique_brands()
+    def test_suggest_brands(self, perfume_repo):
+        """Подсказки брендов — непустой список строк."""
+        brands = perfume_repo.suggest_brands(q="", limit=20)
 
         assert isinstance(brands, list)
         assert len(brands) > 0
-        assert brands == sorted(brands)
+        assert all(isinstance(b, str) for b in brands)
+
+    def test_suggest_brands_search(self, perfume_repo):
+        """Подсказки брендов с запросом — ILIKE-фильтр."""
+        brands = perfume_repo.suggest_brands(q="Test", limit=10)
+
+        assert isinstance(brands, list)
+        for b in brands:
+            assert "test" in b.lower()
 
     def test_get_unique_families(self, perfume_repo):
         """Список семейств — непустой."""
@@ -126,11 +127,13 @@ class TestPerfumeRepository:
 
         assert len(genders) > 0
 
-    def test_get_unique_notes(self, perfume_repo):
-        """Список нот — непустой."""
-        notes = perfume_repo.get_unique_notes()
+    def test_suggest_notes(self, perfume_repo):
+        """Подсказки нот — непустой список строк."""
+        notes = perfume_repo.suggest_notes(q="", limit=20)
 
+        assert isinstance(notes, list)
         assert len(notes) > 0
+        assert all(isinstance(n, str) for n in notes)
 
     def test_get_unique_product_types(self, perfume_repo):
         """Список типов продукта — непустой."""

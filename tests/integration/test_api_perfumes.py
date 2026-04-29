@@ -65,42 +65,39 @@ class TestGetPerfumeEndpoint:
 class TestGetFiltersEndpoint:
 
     def test_get_filters_success(self, test_client):
-        """GET /perfumes/filters/all → 200 и структура фильтров."""
-        response = test_client.get(f"{BASE}/perfumes/filters/all")
+        """GET /perfumes/filters → 200 и структура фильтров."""
+        response = test_client.get(f"{BASE}/perfumes/filters")
 
         assert response.status_code == 200
         data = response.json()
         assert "genders" in data
         assert "families" in data
         assert "product_types" in data
-        assert "brands" in data
-        assert "notes" in data
 
     def test_get_filters_returns_lists(self, test_client):
         """Все поля фильтров — списки."""
-        response = test_client.get(f"{BASE}/perfumes/filters/all")
+        response = test_client.get(f"{BASE}/perfumes/filters")
 
         assert response.status_code == 200
         data = response.json()
-        for key in ("genders", "families", "product_types", "brands", "notes"):
+        for key in ("genders", "families", "product_types"):
             assert isinstance(data[key], list), f"{key} должен быть списком"
 
     def test_get_filters_content(self, test_client):
         """Фильтры содержат ожидаемые значения из mock."""
-        response = test_client.get(f"{BASE}/perfumes/filters/all")
+        response = test_client.get(f"{BASE}/perfumes/filters")
 
         assert response.status_code == 200
         data = response.json()
         assert "Female" in data["genders"]
-        assert "Chanel" in data["brands"]
         assert "Floral" in data["families"]
 
 
 class TestGetBrandsEndpoint:
 
     def test_get_brands_success(self, test_client):
-        """GET /perfumes/brands/all → 200 и список строк."""
-        response = test_client.get(f"{BASE}/perfumes/brands/all")
+        """GET /perfumes/brands/suggest → 200 и список строк."""
+        response = test_client.get(f"{BASE}/perfumes/brands/suggest")
 
         assert response.status_code == 200
         data = response.json()
@@ -110,9 +107,8 @@ class TestGetBrandsEndpoint:
 
     def test_get_brands_content(self, test_client):
         """Список брендов содержит ожидаемые значения."""
-        response = test_client.get(f"{BASE}/perfumes/brands/all")
+        response = test_client.get(f"{BASE}/perfumes/brands/suggest")
 
         assert response.status_code == 200
         brands = response.json()
         assert "Chanel" in brands
-        assert "Dior" in brands

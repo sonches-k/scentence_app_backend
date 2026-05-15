@@ -44,7 +44,6 @@ class PerfumeModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     notes = relationship(
         "PerfumeNoteModel",
         back_populates="perfume",
@@ -52,6 +51,12 @@ class PerfumeModel(Base):
     )
     embedding = relationship(
         "PerfumeEmbeddingModel",
+        back_populates="perfume",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    similarity_embedding = relationship(
+        "PerfumeSimilarityEmbeddingModel",
         back_populates="perfume",
         uselist=False,
         cascade="all, delete-orphan",
@@ -125,6 +130,24 @@ class PerfumeEmbeddingModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     perfume = relationship("PerfumeModel", back_populates="embedding")
+
+
+class PerfumeSimilarityEmbeddingModel(Base):
+    """Embedding по нотному профилю — используется для поиска похожих ароматов."""
+
+    __tablename__ = "perfume_similarity_embeddings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    perfume_id = Column(
+        Integer,
+        ForeignKey("perfumes.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    embedding = Column(Vector(1024), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    perfume = relationship("PerfumeModel", back_populates="similarity_embedding")
 
 
 class PerfumeTagModel(Base):
@@ -212,6 +235,7 @@ class UserFavoriteModel(Base):
     """ORM модель избранного аромата."""
 
     __tablename__ = "user_favorites"
+    __table_args__ = (UniqueConstraint("user_id", "perfume_id", name="uq_user_favorites_user_perfume"),)
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(

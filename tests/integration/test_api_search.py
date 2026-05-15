@@ -181,3 +181,61 @@ class TestFindSimilarEndpoint:
         response = test_client.post(f"{BASE}/search/similar/1?limit=0")
 
         assert response.status_code == 422
+
+
+class TestSearchFiltersValidation:
+
+    def test_year_from_greater_than_year_to_rejected(self, test_client):
+        """year_from > year_to → 422."""
+        response = test_client.post(
+            f"{BASE}/search/",
+            json={
+                "query": "цветочный аромат",
+                "filters": {"year_from": 2024, "year_to": 2010},
+            },
+        )
+        assert response.status_code == 422
+
+    def test_year_from_equal_year_to_accepted(self, test_client):
+        """year_from == year_to → 200."""
+        response = test_client.post(
+            f"{BASE}/search/",
+            json={
+                "query": "цветочный аромат",
+                "filters": {"year_from": 2020, "year_to": 2020},
+            },
+        )
+        assert response.status_code == 200
+
+    def test_year_from_less_than_year_to_accepted(self, test_client):
+        """year_from < year_to → 200."""
+        response = test_client.post(
+            f"{BASE}/search/",
+            json={
+                "query": "цветочный аромат",
+                "filters": {"year_from": 2010, "year_to": 2024},
+            },
+        )
+        assert response.status_code == 200
+
+    def test_year_from_below_min_rejected(self, test_client):
+        """year_from < 1800 → 422."""
+        response = test_client.post(
+            f"{BASE}/search/",
+            json={
+                "query": "цветочный аромат",
+                "filters": {"year_from": 1799},
+            },
+        )
+        assert response.status_code == 422
+
+    def test_year_to_above_max_rejected(self, test_client):
+        """year_to > 2030 → 422."""
+        response = test_client.post(
+            f"{BASE}/search/",
+            json={
+                "query": "цветочный аромат",
+                "filters": {"year_to": 2031},
+            },
+        )
+        assert response.status_code == 422

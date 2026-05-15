@@ -96,7 +96,6 @@ class GetFiltersUseCase:
         self._cache = cache
 
     def execute(self) -> FiltersData:
-        # v7: все ароматы получили категорию, удалены атомайзеры Travalo
         key = "filters:v7"
         if self._cache:
             cached = self._cache.get(key)

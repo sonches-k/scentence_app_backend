@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 from app.infrastructure.config import settings
 from app.infrastructure.database import get_db, SQLAlchemyPerfumeRepository, SQLAlchemyUserRepository
-from app.infrastructure.external import DeepSeekLLMService, SentenceTransformerEmbeddingService
+from app.infrastructure.external import DeepSeekLLMService, NullLLMService, SentenceTransformerEmbeddingService
 from app.core.entities import User
 from app.core.interfaces import (
     IPerfumeRepository,
@@ -65,11 +65,10 @@ def get_embedding_service() -> IEmbeddingService:
 
 @lru_cache()
 def get_llm_service() -> ILLMService:
-    """LLM-сервис: DeepSeek Chat."""
+    """LLM-сервис: DeepSeek Chat или NullLLMService если ключ не задан."""
     if not _is_valid_deepseek_key(settings.DEEPSEEK_API_KEY):
-        raise RuntimeError(
-            "LLM-сервис не сконфигурирован: задайте корректный DEEPSEEK_API_KEY в .env"
-        )
+        logger.warning("DEEPSEEK_API_KEY не задан или некорректен — LLM-объяснения отключены")
+        return NullLLMService()
     logger.info("LLM: используется DeepSeekLLMService")
     return DeepSeekLLMService()
 
@@ -88,11 +87,8 @@ def get_jwt_service() -> IJWTService:
 def get_cache_service() -> Optional[ICacheService]:
     if not settings.REDIS_URL:
         return None
-    try:
-        from app.infrastructure.cache.redis_service import RedisCacheService
-        return RedisCacheService(settings.REDIS_URL)
-    except Exception:
-        return None
+    from app.infrastructure.cache.redis_service import RedisCacheService
+    return RedisCacheService(settings.REDIS_URL)
 
 
 _http_bearer = HTTPBearer(auto_error=False)
@@ -133,7 +129,8 @@ def get_optional_current_user(
     try:
         user_id = jwt_service.decode_token(credentials.credentials)
         return user_repo.get_by_id(user_id)
-    except Exception:
+    except Exception as exc:
+        logger.debug("get_optional_current_user: %s", exc)
         return None
 
 

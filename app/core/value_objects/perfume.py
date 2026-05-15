@@ -10,7 +10,6 @@ class NotePyramid:
     base: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self):
-        # Конвертируем списки в tuple для immutability
         object.__setattr__(self, 'top', tuple(self.top))
         object.__setattr__(self, 'middle', tuple(self.middle))
         object.__setattr__(self, 'base', tuple(self.base))

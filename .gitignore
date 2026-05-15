@@ -109,13 +109,10 @@ data/model_baseline/
 
 # Coverage and test reports
 coverage_report/
-test_report.html
-test_report_e2e.html
-unit_report.html
-integration_report.html
-e2e_report.html
+reports/
 *_report.html
 load_test_results/
+benchmark_results/
 
 # Microsoft Office documents and their lock files
 *.docx
@@ -137,3 +134,9 @@ tz_gdocs.html
 
 # Load test tokens (содержат JWT — никогда в git)
 scripts/load_test_tokens.json
+
+# Internal one-off / load-test scripts
+scripts/benchmark_search.py
+scripts/create_load_test_users.py
+scripts/cleanup_db.sql
+scripts/locustfile.py

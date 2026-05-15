@@ -17,6 +17,8 @@ def decode_access_token(token: str) -> int:
     """Raises ValueError если токен невалиден или истёк."""
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "access":
+            raise ValueError("Неверный тип токена")
         sub = payload.get("sub")
         if sub is None:
             raise ValueError("Токен не содержит user_id")

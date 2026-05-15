@@ -34,7 +34,7 @@ class EmailService(IEmailService):
         from email.mime.text import MIMEText
 
         body = (
-            f"Ваш код подтверждения для Perfume App: {code}\n\n"
+            f"Ваш код подтверждения для приложения Scentence: {code}\n\n"
             f"Код действует 10 минут.\n"
             f"Если вы не запрашивали код — проигнорируйте это письмо."
         )

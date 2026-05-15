@@ -38,8 +38,6 @@ class FakeEmbeddingService(IEmbeddingService):
         return [self.generate_embedding(t) for t in texts]
 
 
-# ── Test DB lifecycle (session scoped) ──────────────────────────────────────
-
 @pytest.fixture(scope="session")
 def test_engine():
     engine = create_engine(_TEST_DATABASE_URL)
@@ -106,8 +104,6 @@ def seed_perfumes(test_engine) -> list[int]:
 
     return ids
 
-
-# ── Per-test session ─────────────────────────────────────────────────────────
 
 @pytest.fixture
 def db_session(test_engine, seed_perfumes):

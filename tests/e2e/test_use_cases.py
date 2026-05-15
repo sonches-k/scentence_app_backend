@@ -72,7 +72,6 @@ class TestSemanticSearchE2E:
         )
         result = use_case.execute(query="древесный мускусный аромат", limit=3)
 
-        # Хотя бы у одного аромата должны быть ноты
         has_notes = any(len(p.perfume.notes) > 0 for p in result.perfumes)
         assert has_notes, "Ни у одного аромата нет нот"
 

@@ -1,8 +1,14 @@
 
+import hashlib
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, distinct, exists, func
+from sqlalchemy.exc import IntegrityError
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode(), usedforsecurity=True).hexdigest()
 
 from app.core.entities import (
     Perfume,
@@ -21,6 +27,7 @@ from app.infrastructure.database.models import (
     NoteModel,
     PerfumeNoteModel,
     PerfumeEmbeddingModel,
+    PerfumeSimilarityEmbeddingModel,
     PerfumeTagModel,
     UserModel,
     UserFavoriteModel,
@@ -103,6 +110,8 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
             query = query.filter(
                 PerfumeModel.product_type.in_(filters["product_types"])
             )
+        if "categories" in filters and filters["categories"]:
+            query = query.filter(PerfumeModel.category.in_(filters["categories"]))
         if "brands" in filters and filters["brands"]:
             query = query.filter(PerfumeModel.brand.in_(filters["brands"]))
         if "year_from" in filters and filters["year_from"]:
@@ -110,7 +119,6 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         if "year_to" in filters and filters["year_to"]:
             query = query.filter(PerfumeModel.year <= filters["year_to"])
         if "notes" in filters and filters["notes"]:
-            # EXISTS (SELECT 1 FROM perfume_notes JOIN notes WHERE perfume_id = id AND name IN (...))
             notes_subq = (
                 select(PerfumeNoteModel.perfume_id)
                 .join(NoteModel, NoteModel.id == PerfumeNoteModel.note_id)
@@ -153,23 +161,32 @@ class SQLAlchemyPerfumeRepository(IPerfumeRepository):
         perfume_id: int,
         limit: int = 5,
     ) -> list[tuple[Perfume, float]]:
-        source_embedding = self._session.query(PerfumeEmbeddingModel).filter(
-            PerfumeEmbeddingModel.perfume_id == perfume_id
+        source_similarity = self._session.query(PerfumeSimilarityEmbeddingModel).filter(
+            PerfumeSimilarityEmbeddingModel.perfume_id == perfume_id
         ).first()
 
-        if not source_embedding:
-            return []
+        if source_similarity:
+            embedding_model = PerfumeSimilarityEmbeddingModel
+            source_embedding = source_similarity
+        else:
+            source_search = self._session.query(PerfumeEmbeddingModel).filter(
+                PerfumeEmbeddingModel.perfume_id == perfume_id
+            ).first()
+            if not source_search:
+                return []
+            embedding_model = PerfumeEmbeddingModel
+            source_embedding = source_search
 
         subquery = (
             self._session.query(
-                PerfumeEmbeddingModel.perfume_id,
+                embedding_model.perfume_id,
                 (
-                    1 - PerfumeEmbeddingModel.embedding.cosine_distance(
+                    1 - embedding_model.embedding.cosine_distance(
                         source_embedding.embedding
                     )
                 ).label("similarity"),
             )
-            .filter(PerfumeEmbeddingModel.perfume_id != perfume_id)
+            .filter(embedding_model.perfume_id != perfume_id)
             .subquery()
         )
 
@@ -299,8 +316,15 @@ class SQLAlchemyUserRepository(IUserRepository):
     def add_favorite(self, user_id: int, perfume_id: int) -> UserFavorite:
         model = UserFavoriteModel(user_id=user_id, perfume_id=perfume_id)
         self._session.add(model)
-        self._session.commit()
-        self._session.refresh(model)
+        try:
+            self._session.commit()
+            self._session.refresh(model)
+        except IntegrityError:
+            self._session.rollback()
+            model = self._session.query(UserFavoriteModel).filter(
+                UserFavoriteModel.user_id == user_id,
+                UserFavoriteModel.perfume_id == perfume_id,
+            ).one()
         return UserFavorite(
             id=model.id,
             user_id=model.user_id,
@@ -485,13 +509,13 @@ class SQLAlchemyUserRepository(IUserRepository):
         self._session.commit()
 
     def create_refresh_token(self, user_id: int, token: str, expires_at: datetime) -> None:
-        model = RefreshTokenModel(user_id=user_id, token=token, expires_at=expires_at)
+        model = RefreshTokenModel(user_id=user_id, token=_hash_token(token), expires_at=expires_at)
         self._session.add(model)
         self._session.commit()
 
     def get_refresh_token(self, token: str) -> Optional[StoredRefreshToken]:
         model = self._session.query(RefreshTokenModel).filter(
-            RefreshTokenModel.token == token
+            RefreshTokenModel.token == _hash_token(token)
         ).first()
         if not model:
             return None
@@ -499,7 +523,7 @@ class SQLAlchemyUserRepository(IUserRepository):
 
     def delete_refresh_token(self, token: str) -> None:
         self._session.query(RefreshTokenModel).filter(
-            RefreshTokenModel.token == token
+            RefreshTokenModel.token == _hash_token(token)
         ).delete()
         self._session.commit()
 

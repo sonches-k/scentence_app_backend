@@ -22,6 +22,7 @@ from app.core.use_cases import (
     GetPerfumeUseCase,
     SemanticSearchUseCase,
     SuggestBrandsUseCase,
+    SuggestNotesUseCase,
     GetFavoritesUseCase,
     AddFavoriteUseCase,
     RemoveFavoriteUseCase,
@@ -38,6 +39,7 @@ from app.api.dependencies import (
     get_perfume_use_case,
     get_semantic_search_use_case,
     get_suggest_brands_use_case,
+    get_suggest_notes_use_case,
     get_user_repository,
     get_favorites_use_case,
     get_add_favorite_use_case,
@@ -186,6 +188,9 @@ def test_client(sample_perfumes, sample_perfume):
     mock_suggest_brands_uc = MagicMock(spec=SuggestBrandsUseCase)
     mock_suggest_brands_uc.execute.return_value = ["Chanel", "Dior", "Guerlain"]
 
+    mock_suggest_notes_uc = MagicMock(spec=SuggestNotesUseCase)
+    mock_suggest_notes_uc.execute.return_value = ["Бергамот", "Роза", "Мускус"]
+
     mock_favorites_uc = MagicMock(spec=GetFavoritesUseCase)
     mock_favorites_uc.execute.return_value = sample_perfumes[:2]
 
@@ -210,6 +215,7 @@ def test_client(sample_perfumes, sample_perfume):
     app.dependency_overrides[get_perfume_use_case]         = lambda: mock_perfume_uc
     app.dependency_overrides[get_filters_use_case]         = lambda: mock_filters_uc
     app.dependency_overrides[get_suggest_brands_use_case]  = lambda: mock_suggest_brands_uc
+    app.dependency_overrides[get_suggest_notes_use_case]   = lambda: mock_suggest_notes_uc
     app.dependency_overrides[get_favorites_use_case]       = lambda: mock_favorites_uc
     app.dependency_overrides[get_add_favorite_use_case]    = lambda: mock_add_fav_uc
     app.dependency_overrides[get_remove_favorite_use_case] = lambda: mock_remove_fav_uc

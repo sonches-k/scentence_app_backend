@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.converters import perfume_to_card
 from app.api.schemas.perfume import PerfumeCard
@@ -121,7 +121,7 @@ async def remove_favorite(
 async def get_history(
     use_case: GetSearchHistoryUseCase = Depends(get_search_history_use_case),
     current_user: User = Depends(get_current_user),
-    limit: int = 100,
+    limit: int = Query(default=100, ge=1, le=200),
 ):
     try:
         history = use_case.execute(current_user.id, limit)

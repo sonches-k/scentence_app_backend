@@ -25,13 +25,11 @@ class SentenceTransformerEmbeddingService(IEmbeddingService):
         logger.info("Модель загружена. Размерность: %d", self.dimension)
 
     def generate_embedding(self, text: str) -> List[float]:
-        # E5-модели требуют префикс 'query: ' для поисковых запросов
         text = f"query: {text}"
         embedding = self.model.encode(text, normalize_embeddings=True)
         return embedding.tolist()
 
     def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
-        # E5-модели требуют префикс 'passage: ' для индексируемых документов
         texts = [f"passage: {t}" for t in texts]
         embeddings = self.model.encode(texts, show_progress_bar=True, normalize_embeddings=True)
         return [emb.tolist() for emb in embeddings]

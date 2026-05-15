@@ -6,7 +6,11 @@ POST /refresh  — новый access по refresh
 POST /logout   — инвалидировать refresh в БД
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.api.schemas.auth import (
     RegisterRequest,
@@ -40,23 +44,27 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=MessageResponse, summary="Регистрация / запрос кода")
+@limiter.limit("10/hour")
 async def register(
-    request: RegisterRequest,
+    request: Request,
+    body: RegisterRequest,
     use_case: RegisterUseCase = Depends(get_register_use_case),
 ):
     """Если пользователь уже существует — код обновляется."""
-    use_case.execute(str(request.email))
+    use_case.execute(str(body.email))
     return MessageResponse(message="Код отправлен на email")
 
 
 @router.post("/login", response_model=MessageResponse, summary="Вход")
+@limiter.limit("10/hour")
 async def login(
-    request: RegisterRequest,
+    request: Request,
+    body: RegisterRequest,
     use_case: LoginUseCase = Depends(get_login_use_case),
 ):
     """404 если email не зарегистрирован."""
     try:
-        use_case.execute(str(request.email))
+        use_case.execute(str(body.email))
     except UserNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -66,8 +74,10 @@ async def login(
 
 
 @router.post("/verify", response_model=TokenResponse, summary="Верификация кода")
+@limiter.limit("10/minute")
 async def verify(
-    request: VerifyRequest,
+    request: Request,
+    body: VerifyRequest,
     use_case: VerifyCodeUseCase = Depends(get_verify_code_use_case),
 ):
     """
@@ -75,7 +85,7 @@ async def verify(
     429 — превышен лимит попыток (5)
     """
     try:
-        tokens = use_case.execute(str(request.email), request.code)
+        tokens = use_case.execute(str(body.email), body.code)
     except TooManyAttemptsError as e:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e))
     except InvalidCodeError as e:

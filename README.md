@@ -21,7 +21,7 @@ cp .env.example .env
 docker compose up -d postgres
 
 # 3. Инициализировать схему и загрузить данные
-docker compose run --rm init
+docker compose --profile init run --rm init
 
 # 4. Сгенерировать эмбеддинги (первый раз ~20 мин — скачивается модель)
 docker compose run --rm app python scripts/generate_embeddings.py
@@ -34,7 +34,7 @@ docker compose up -d app
 
 ```bash
 curl http://localhost:8000/health
-# {"status":"healthy"}
+# {"status":"healthy","db":"ok","redis":"ok"}
 ```
 
 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
@@ -74,11 +74,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | `GET` | `/api/v1/perfumes/brands/suggest` | Подсказки брендов | — |
 | `GET` | `/api/v1/perfumes/notes/suggest` | Подсказки нот | — |
 | `POST` | `/api/v1/auth/register` | Запросить код на email | — |
-| `POST` | `/api/v1/auth/verify` | Подтвердить код → JWT | — |
 | `POST` | `/api/v1/auth/login` | Войти (повторный код) | — |
+| `POST` | `/api/v1/auth/verify` | Подтвердить код → access + refresh | — |
+| `POST` | `/api/v1/auth/refresh` | Обновить access-токен | — |
+| `POST` | `/api/v1/auth/logout` | Выйти (инвалидировать refresh) | — |
 | `GET/PUT` | `/api/v1/users/profile` | Профиль пользователя | ✅ |
 | `GET/POST/DELETE` | `/api/v1/users/favorites/{id}` | Избранное | ✅ |
 | `GET/DELETE` | `/api/v1/users/history` | История поиска | ✅ |
+| `DELETE` | `/api/v1/users/history/{entry_id}` | Удалить запись из истории | ✅ |
 
 ---
 

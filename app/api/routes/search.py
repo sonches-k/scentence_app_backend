@@ -1,9 +1,13 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.api.converters import perfume_with_relevance_to_response
 from app.api.schemas.search import (
@@ -43,8 +47,10 @@ def _convert_filters(filters: SearchFilters | None) -> UseCaseSearchFilters | No
 
 
 @router.post("/", response_model=SearchResponse, status_code=status.HTTP_200_OK)
+@limiter.limit("30/minute")
 async def semantic_search(
-    request: SearchRequest,
+    request: Request,
+    body: SearchRequest,
     use_case: SemanticSearchUseCase = Depends(get_semantic_search_use_case),
     current_user: Optional[User] = Depends(get_optional_current_user),
     user_repo: IUserRepository = Depends(get_user_repository),
@@ -62,12 +68,12 @@ async def semantic_search(
     обработка прерывается и клиент получает HTTP 504 Gateway Timeout
     (см. требование ТЗ п. 3.14).
     """
-    filters = _convert_filters(request.filters)
+    filters = _convert_filters(body.filters)
     try:
         result = use_case.execute(
-            query=request.query,
+            query=body.query,
             filters=filters,
-            limit=request.limit,
+            limit=body.limit,
         )
     except LLMTimeoutError as exc:
         logger.warning("LLM timeout during semantic search: %s", exc)
@@ -80,7 +86,7 @@ async def semantic_search(
         try:
             user_repo.add_search_history(
                 user_id=current_user.id,
-                query_text=request.query,
+                query_text=body.query,
                 filters=result.filters_applied,
             )
         except Exception as e:

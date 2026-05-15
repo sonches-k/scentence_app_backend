@@ -93,7 +93,7 @@ def _similar_from_dict(data: list) -> list[PerfumeWithRelevance]:
 
 
 def _filters_hash(filters: Optional[dict]) -> str:
-    return hashlib.md5(json.dumps(filters or {}, sort_keys=True).encode()).hexdigest()[:8]
+    return hashlib.md5(json.dumps(filters or {}, sort_keys=True).encode(), usedforsecurity=False).hexdigest()[:8]
 
 
 class SemanticSearchUseCase:

@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
 from app.api.schemas.perfume import (
     PerfumeResponse,
@@ -64,7 +64,7 @@ def _perfume_to_response(perfume) -> PerfumeResponse:
 
 def _compute_etag(data: dict | list) -> str:
     payload = json.dumps(data, sort_keys=True, ensure_ascii=False)
-    return hashlib.md5(payload.encode()).hexdigest()
+    return hashlib.md5(payload.encode(), usedforsecurity=False).hexdigest()
 
 
 @router.get("/filters", response_model=FiltersResponse)
@@ -92,7 +92,7 @@ async def get_filters(
 @router.get("/brands/suggest", response_model=list[str])
 async def suggest_brands(
     q: str = "",
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=100),
     use_case: SuggestBrandsUseCase = Depends(get_suggest_brands_use_case),
 ):
     return use_case.execute(q=q.strip(), limit=limit)
@@ -101,7 +101,7 @@ async def suggest_brands(
 @router.get("/notes/suggest", response_model=list[str])
 async def suggest_notes(
     q: str = "",
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=100),
     use_case: SuggestNotesUseCase = Depends(get_suggest_notes_use_case),
 ):
     return use_case.execute(q=q.strip(), limit=limit)

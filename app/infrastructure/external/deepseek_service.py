@@ -11,9 +11,6 @@ from app.infrastructure.external.prompts import (
 )
 
 
-# Жёсткий лимит ожидания ответа от внешнего LLM-сервиса (сек).
-# Соответствует требованию ТЗ п. 3.14: при превышении сервер прерывает
-# обработку запроса и возвращает клиенту 504 Gateway Timeout.
 _LLM_REQUEST_TIMEOUT = 60.0
 
 
@@ -58,11 +55,6 @@ class DeepSeekLLMService(ILLMService):
             return "К сожалению, не удалось найти ароматы, соответствующие вашему запросу.", NotePyramid()
 
         prompt = build_search_result_prompt(query, perfumes)
-        # Таймаут LLM пробрасываем доменным исключением: вызывающий слой
-        # (API-роут) транслирует его в HTTP 504. Прочие ошибки LLM
-        # (парсинг ответа, сетевые сбои) обрабатываются gracefully —
-        # пользователь получает корректный список ароматов с упрощённым
-        # пояснением, без срыва сценария поиска.
         try:
             client = self._get_client()
             response = client.chat.completions.create(

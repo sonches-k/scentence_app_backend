@@ -35,8 +35,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = 10
-BATCH_DELAY = 1.0   # секунд между батчами (rate limit DeepSeek)
+BATCH_SIZE = 20
+BATCH_DELAY = 0.5   # секунд между батчами (rate limit DeepSeek)
 MAX_RETRIES = 3
 RETRY_DELAY = 2.0   # секунд между повторами
 
@@ -59,14 +59,35 @@ def ensure_summary_column(session) -> None:
         logger.warning(f"Не удалось добавить колонку review_summary: {e}")
 
 
-def get_perfumes(session, force: bool = False, limit: int = None, offset: int = 0) -> list[dict]:
+def get_perfumes(
+    session,
+    force: bool = False,
+    limit: int = None,
+    offset: int = 0,
+    only_truncated: bool = False,
+    fix_style: bool = False,
+    missing_summary: bool = False,
+) -> list[dict]:
     """
     Загрузить ароматы из БД вместе с нотами.
 
     Если force=False — пропускает ароматы, у которых уже есть теги source='deepseek'.
+    only_truncated=True — только ароматы с review_summary длиной >= 295 символов (обрезанные).
+    fix_style=True — только ароматы с summary в разговорном стиле (начинаются с «Представь»/«Слушай»).
     offset позволяет запускать несколько процессов параллельно на разных диапазонах.
     """
-    already_tagged_filter = "" if force else """
+    if fix_style:
+        already_tagged_filter = (
+            "WHERE p.review_summary ILIKE 'слушай%' OR p.review_summary ILIKE 'представь%'"
+        )
+    elif only_truncated:
+        already_tagged_filter = "WHERE LENGTH(p.review_summary) >= 295"
+    elif missing_summary:
+        already_tagged_filter = "WHERE p.review_summary IS NULL"
+    elif force:
+        already_tagged_filter = ""
+    else:
+        already_tagged_filter = """
     WHERE NOT EXISTS (
         SELECT 1 FROM perfume_tags pt
         WHERE pt.perfume_id = p.id AND pt.source = 'deepseek'
@@ -115,23 +136,45 @@ def get_perfumes(session, force: bool = False, limit: int = None, offset: int = 
 # DeepSeek: промт и вызов
 # ---------------------------------------------------------------------------
 
-def build_prompt(perfume: dict) -> str:
+def build_prompt(perfume: dict, summary_only: bool = False) -> str:
     description = perfume["description"][:500] if perfume["description"] else "нет описания"
-    return (
-        "Ты — эксперт по парфюмерии. На основе описания аромата определи:\n"
-        "1. До 10 эмоциональных тегов/ассоциаций — короткие слова или фразы "
-        "(примеры: уютный, романтичный, офисный, загадочный, вечерний, свежий, "
-        "дерзкий, элегантный, для свидания, на каждый день)\n"
-        "2. Краткую суммаризацию впечатления от аромата "
-        "(до 300 символов, на русском, как будто описываешь другу)\n\n"
+    base = (
         f"Аромат: {perfume['name']} от {perfume['brand']}\n"
         f"Семейство: {perfume['family']}\n"
         f"Ноты: верхние — {perfume['top_notes']}, "
         f"средние — {perfume['middle_notes']}, "
         f"базовые — {perfume['base_notes']}\n"
         f"Описание: {description}\n\n"
-        'Ответь ТОЛЬКО JSON: {"tags": ["тег1", "..."], "summary": "текст"}'
     )
+    if summary_only:
+        return (
+            "Ты — эксперт по парфюмерии. Напиши короткое описание впечатления от аромата: "
+            "1-2 предложения, на русском, нейтральный тон, без обращений и восклицаний, "
+            "без слов «Слушай», «Представь», «Это». Начни сразу с характера аромата.\n\n"
+            + base
+            + 'Ответь ТОЛЬКО JSON: {"summary": "текст"}'
+        )
+    return (
+        "Ты — эксперт по парфюмерии. На основе описания аромата определи:\n"
+        "1. До 10 эмоциональных тегов/ассоциаций — короткие слова или фразы "
+        "(примеры: уютный, романтичный, офисный, загадочный, вечерний, свежий, "
+        "дерзкий, элегантный, для свидания, на каждый день)\n"
+        "2. Короткое описание впечатления: 1-2 предложения, нейтральный тон, "
+        "без обращений и восклицаний, без слов «Слушай», «Представь», «Это». "
+        "Начни сразу с характера аромата.\n\n"
+        + base
+        + 'Ответь ТОЛЬКО JSON: {"tags": ["тег1", "..."], "summary": "текст"}'
+    )
+
+
+_SUMMARY_LIMIT = 800
+
+def _truncate_summary(text: str) -> str:
+    if len(text) <= _SUMMARY_LIMIT:
+        return text
+    truncated = text[:_SUMMARY_LIMIT]
+    last = max(truncated.rfind("."), truncated.rfind("!"), truncated.rfind("?"))
+    return truncated[: last + 1] if last != -1 else truncated
 
 
 def _extract_json(content: str) -> str:
@@ -146,7 +189,7 @@ def _extract_json(content: str) -> str:
     return content
 
 
-def call_deepseek(client, model: str, prompt: str) -> dict | None:
+def call_deepseek(client, model: str, prompt: str, summary_only: bool = False) -> dict | None:
     """
     Вызвать DeepSeek API. Retry до MAX_RETRIES раз.
     Возвращает {"tags": [...], "summary": "..."} или None при неудаче.
@@ -156,19 +199,22 @@ def call_deepseek(client, model: str, prompt: str) -> dict | None:
             response = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=400,
+                max_tokens=200 if summary_only else 700,
                 temperature=0.6,
             )
             content = response.choices[0].message.content.strip()
             content = _extract_json(content)
             data = json.loads(content)
 
+            summary = _truncate_summary(str(data.get("summary", "")).strip())
+
+            if summary_only:
+                return {"tags": [], "summary": summary}
+
             tags = data.get("tags", [])
             if not isinstance(tags, list):
                 raise ValueError("поле 'tags' должно быть списком")
             tags = [str(t).strip() for t in tags if str(t).strip()][:10]
-
-            summary = str(data.get("summary", "")).strip()[:300]
 
             return {"tags": tags, "summary": summary}
 
@@ -225,23 +271,25 @@ def process_perfume(
     force: bool,
     idx: int,
     total: int,
+    summary_only: bool = False,
 ) -> bool:
     """Обработать один аромат. Возвращает True при успехе."""
     label = f"[{idx}/{total}] {perfume['brand']} — {perfume['name']}"
-    prompt = build_prompt(perfume)
+    prompt = build_prompt(perfume, summary_only=summary_only)
 
     if dry_run:
         logger.info(f"  [DRY-RUN] {label}")
         logger.info(f"            промт ({len(prompt)} симв.): {prompt[:150].replace(chr(10), ' ')}…")
         return True
 
-    result = call_deepseek(client, model, prompt)
+    result = call_deepseek(client, model, prompt, summary_only=summary_only)
     if result is None:
         logger.error(f"  ОШИБКА: {label} — нет ответа после {MAX_RETRIES} попыток")
         return False
 
     try:
-        save_tags(session, perfume["id"], result["tags"], force)
+        if not summary_only:
+            save_tags(session, perfume["id"], result["tags"], force)
         save_summary(session, perfume["id"], result["summary"])
         session.commit()
 
@@ -295,6 +343,26 @@ def main():
         metavar="N",
         help="Пропустить первые N ароматов (для параллельного запуска)",
     )
+    parser.add_argument(
+        "--only-truncated",
+        action="store_true",
+        help="Обработать только ароматы с обрезанным summary (>= 295 символов)",
+    )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Генерировать только summary, теги не трогать",
+    )
+    parser.add_argument(
+        "--fix-style",
+        action="store_true",
+        help="Перегенерировать summary начинающиеся с «Слушай» или «Представь»",
+    )
+    parser.add_argument(
+        "--missing-summary",
+        action="store_true",
+        help="Генерировать summary только для ароматов где оно NULL",
+    )
     args = parser.parse_args()
 
     # Загружаем .env из корня проекта (override=True чтобы .env имел приоритет над env в терминале)
@@ -337,6 +405,14 @@ def main():
             logger.info("РЕЖИМ: DRY-RUN — запросы к API не отправляются")
         if args.force:
             logger.info("РЕЖИМ: FORCE — существующие теги будут перезаписаны")
+        if args.only_truncated:
+            logger.info("РЕЖИМ: ONLY-TRUNCATED — только ароматы с обрезанным summary")
+        if args.summary_only:
+            logger.info("РЕЖИМ: SUMMARY-ONLY — теги не затрагиваются")
+        if args.fix_style:
+            logger.info("РЕЖИМ: FIX-STYLE — перегенерация summary в разговорном стиле")
+        if args.missing_summary:
+            logger.info("РЕЖИМ: MISSING-SUMMARY — только ароматы без summary")
         logger.info(f"Модель: {DEEPSEEK_MODEL}")
         logger.info("=" * 60)
 
@@ -344,7 +420,15 @@ def main():
             ensure_summary_column(session)
 
         logger.info("Загрузка ароматов из БД...")
-        perfumes = get_perfumes(session, force=args.force, limit=args.limit, offset=args.offset)
+        perfumes = get_perfumes(
+            session,
+            force=args.force,
+            limit=args.limit,
+            offset=args.offset,
+            only_truncated=args.only_truncated,
+            fix_style=args.fix_style,
+            missing_summary=args.missing_summary,
+        )
 
         if not perfumes:
             logger.info(
@@ -374,6 +458,7 @@ def main():
                     session, client, DEEPSEEK_MODEL,
                     perfume, args.dry_run, args.force,
                     global_idx, total,
+                    summary_only=args.summary_only,
                 )
                 if ok:
                     success_count += 1

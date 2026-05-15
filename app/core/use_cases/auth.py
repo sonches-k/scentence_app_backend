@@ -1,4 +1,4 @@
-import random
+import secrets
 import string
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
@@ -23,7 +23,7 @@ class AuthTokens:
 
 
 def _generate_code() -> str:
-    return "".join(random.choices(string.digits, k=6))
+    return "".join(secrets.choice(string.digits) for _ in range(6))
 
 
 class RegisterUseCase:
@@ -119,7 +119,6 @@ class RefreshTokenUseCase:
             self._user_repo.delete_refresh_token(refresh_token)
             raise InvalidRefreshTokenError("Refresh-токен истёк. Выполните вход заново.")
 
-        # Ротация: удаляем старый refresh, выдаём новую пару
         self._user_repo.delete_refresh_token(refresh_token)
         new_access = self._jwt_service.create_token(stored.user_id)
         new_refresh, new_expires = self._jwt_service.issue_refresh_credentials()

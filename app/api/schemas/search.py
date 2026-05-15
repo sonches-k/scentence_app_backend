@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from app.api.schemas.perfume import PerfumeWithRelevance, NotePyramid
+from app.infrastructure.config import settings
 
 
 class SearchFilters(BaseModel):
@@ -26,6 +27,11 @@ class SearchFilters(BaseModel):
         description="Тип продукта: `EDP` (Eau de Parfum), `EDT` (Eau de Toilette), `Parfum` и др.",
         examples=[["EDP", "Parfum"]],
     )
+    categories: Optional[List[str]] = Field(
+        None,
+        description="Категория (сегмент) аромата: `Люкс`, `Нишевая`, `Восточная`, `Масляная`, `Винтажная` и др.",
+        examples=[["Люкс", "Нишевая"]],
+    )
     brands: Optional[List[str]] = Field(
         None,
         description="Бренды производителей",
@@ -49,6 +55,12 @@ class SearchFilters(BaseModel):
         examples=[2024],
     )
 
+    @model_validator(mode="after")
+    def check_year_range(self) -> "SearchFilters":
+        if self.year_from is not None and self.year_to is not None and self.year_from > self.year_to:
+            raise ValueError("year_from не может быть больше year_to")
+        return self
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -66,8 +78,8 @@ class SearchFilters(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(
         ...,
-        min_length=3,
-        max_length=1000,
+        min_length=settings.MIN_SEARCH_QUERY_LENGTH,
+        max_length=settings.MAX_SEARCH_QUERY_LENGTH,
         description="Свободное описание желаемого аромата (от 3 до 1000 символов)",
         examples=["тёплый уютный аромат для зимних вечеров"],
     )

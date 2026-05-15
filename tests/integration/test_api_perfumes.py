@@ -112,3 +112,49 @@ class TestGetBrandsEndpoint:
         assert response.status_code == 200
         brands = response.json()
         assert "Chanel" in brands
+
+    def test_get_brands_limit_too_large(self, test_client):
+        """limit > 100 → 422."""
+        response = test_client.get(f"{BASE}/perfumes/brands/suggest?limit=101")
+        assert response.status_code == 422
+
+    def test_get_brands_limit_zero(self, test_client):
+        """limit < 1 → 422."""
+        response = test_client.get(f"{BASE}/perfumes/brands/suggest?limit=0")
+        assert response.status_code == 422
+
+
+class TestGetNotesEndpoint:
+
+    def test_get_notes_success(self, test_client):
+        """GET /perfumes/notes/suggest → 200 и список строк."""
+        response = test_client.get(f"{BASE}/perfumes/notes/suggest")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert all(isinstance(n, str) for n in data)
+
+    def test_get_notes_content(self, test_client):
+        """Список нот содержит ожидаемые значения из mock."""
+        response = test_client.get(f"{BASE}/perfumes/notes/suggest")
+
+        assert response.status_code == 200
+        notes = response.json()
+        assert "Бергамот" in notes
+
+    def test_get_notes_with_query(self, test_client):
+        """GET /perfumes/notes/suggest?q=берг → 200."""
+        response = test_client.get(f"{BASE}/perfumes/notes/suggest?q=берг")
+        assert response.status_code == 200
+
+    def test_get_notes_limit_too_large(self, test_client):
+        """limit > 100 → 422."""
+        response = test_client.get(f"{BASE}/perfumes/notes/suggest?limit=101")
+        assert response.status_code == 422
+
+    def test_get_notes_limit_zero(self, test_client):
+        """limit < 1 → 422."""
+        response = test_client.get(f"{BASE}/perfumes/notes/suggest?limit=0")
+        assert response.status_code == 422

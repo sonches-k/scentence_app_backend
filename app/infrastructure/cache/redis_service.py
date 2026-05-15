@@ -1,9 +1,12 @@
 import json
+import logging
 from typing import Any, Optional
 
 import redis as redis_lib
 
 from app.core.interfaces import ICacheService
+
+logger = logging.getLogger(__name__)
 
 
 class RedisCacheService(ICacheService):
@@ -15,14 +18,15 @@ class RedisCacheService(ICacheService):
         try:
             value = self._client.get(key)
             return json.loads(value) if value is not None else None
-        except Exception:
+        except Exception as exc:
+            logger.warning("Redis GET failed for key=%r: %s", key, exc)
             return None
 
     def set(self, key: str, value: Any, ttl: int) -> None:
         try:
             self._client.setex(key, ttl, json.dumps(value, ensure_ascii=False))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Redis SET failed for key=%r: %s", key, exc)
 
     def delete(self, key: str) -> None:
         try:

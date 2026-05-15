@@ -158,9 +158,7 @@ class TestProfileEndpoint:
         original = app.dependency_overrides.get(dep_fn)
         app.dependency_overrides.pop(dep_fn, None)
         try:
-            client = test_client  # reuse client, overrides already changed
             response = test_client.get(f"{BASE}/users/profile")
-            # Без токена должен быть 401 (HTTPBearer auto_error=False → наш код кидает 401)
             assert response.status_code == 401
         finally:
             if original is not None:

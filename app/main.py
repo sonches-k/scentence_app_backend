@@ -1,10 +1,17 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi import status as http_status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.infrastructure.config import settings
 from app.api.routes import auth_router, search_router, perfumes_router, users_router
+
+limiter = Limiter(key_func=get_remote_address)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,6 +25,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,7 +74,35 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    from sqlalchemy import text
+    from app.infrastructure.database.connection import get_db
+
+    db_status = "ok"
+    try:
+        db = next(get_db())
+        db.execute(text("SELECT 1"))
+    except Exception:
+        db_status = "unavailable"
+
+    redis_status = "ok"
+    if settings.REDIS_URL:
+        try:
+            from app.infrastructure.cache.redis_service import RedisCacheService
+            RedisCacheService(settings.REDIS_URL)._client.ping()
+        except Exception:
+            redis_status = "unavailable"
+    else:
+        redis_status = "not configured"
+
+    is_healthy = db_status == "ok"
+    return JSONResponse(
+        status_code=http_status.HTTP_200_OK if is_healthy else http_status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "healthy" if is_healthy else "unhealthy",
+            "db": db_status,
+            "redis": redis_status,
+        },
+    )
 
 
 if __name__ == "__main__":
